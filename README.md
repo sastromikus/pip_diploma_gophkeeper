@@ -2,7 +2,7 @@
 
 GophKeeper is a client-server application for securely storing and synchronizing private user data.
 
-The repository currently contains the project skeleton and validated client/server configuration.
+The repository currently contains the project skeleton, validated client/server configuration, and build version information.
 
 ## Structure
 
@@ -28,6 +28,35 @@ Or build the applications separately:
 mkdir -p bin
 go build -o bin/gophkeeper-server ./cmd/server
 go build -o bin/gophkeeper-client ./cmd/client
+```
+
+## Version information
+
+Both binaries can display embedded build metadata without loading runtime configuration:
+
+```bash
+go run ./cmd/client version
+go run ./cmd/server version
+```
+
+Development builds use safe fallback values:
+
+```text
+Version: dev
+Build date: unknown
+Commit: unknown
+```
+
+Release metadata is injected through `-ldflags`. With `make`:
+
+```bash
+make build VERSION=1.0.0 BUILD_DATE=2026-06-09T03:00:00Z COMMIT=abc1234
+```
+
+The same values can be supplied directly to `go build`:
+
+```bash
+go build -ldflags="-X 'github.com/sastromikus/gophkeeper/internal/version.Version=1.0.0' -X 'github.com/sastromikus/gophkeeper/internal/version.BuildDate=2026-06-09T03:00:00Z' -X 'github.com/sastromikus/gophkeeper/internal/version.Commit=abc1234'" -o bin/gophkeeper-client ./cmd/client
 ```
 
 ## Test
