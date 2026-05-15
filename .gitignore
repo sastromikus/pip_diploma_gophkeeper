@@ -42,3 +42,6 @@ coverage.*
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+# Runtime logs
+*.log
