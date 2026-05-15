@@ -1,0 +1,44 @@
+# Environment and local configuration
+.env
+.env.*
+!.env.example
+
+# Build artifacts and binaries
+/bin/
+/server
+/client
+/gophkeeper-server
+/gophkeeper-client
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go test and coverage artifacts
+*.test
+*.out
+coverage.*
+/coverage/
+
+# Local databases
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+
+# Private keys and certificates
+*.key
+*.pem
+
+# Dependencies
+/vendor/
+
+# IDE and editor settings
+/.idea/
+/.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+Desktop.ini
