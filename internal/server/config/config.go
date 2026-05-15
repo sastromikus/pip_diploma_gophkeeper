@@ -16,6 +16,7 @@ const (
 	defaultSessionTTL      = 24 * time.Hour
 	defaultShutdownTimeout = 10 * time.Second
 	defaultMaxBinarySize   = int64(10 << 20) // 10 MiB.
+	defaultMaxMetadataSize = int64(64 << 10) // 64 KiB.
 )
 
 // Config contains all runtime settings required by the server.
@@ -28,6 +29,7 @@ type Config struct {
 	SessionTTL      time.Duration
 	ShutdownTimeout time.Duration
 	MaxBinarySize   int64
+	MaxMetadataSize int64
 }
 
 // LookupEnv returns an environment variable value by name.
@@ -41,6 +43,7 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 		SessionTTL:      defaultSessionTTL,
 		ShutdownTimeout: defaultShutdownTimeout,
 		MaxBinarySize:   defaultMaxBinarySize,
+		MaxMetadataSize: defaultMaxMetadataSize,
 	}
 
 	flags := flag.NewFlagSet("gophkeeper-server", flag.ContinueOnError)
@@ -52,6 +55,7 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 	flags.DurationVar(&cfg.SessionTTL, "session-ttl", cfg.SessionTTL, "session lifetime")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", cfg.ShutdownTimeout, "graceful shutdown timeout")
 	flags.Int64Var(&cfg.MaxBinarySize, "max-binary-size", cfg.MaxBinarySize, "maximum binary record size in bytes")
+	flags.Int64Var(&cfg.MaxMetadataSize, "max-metadata-size", cfg.MaxMetadataSize, "maximum record metadata size in bytes")
 
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse server flags: %w", err)
@@ -80,6 +84,10 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 			return Config{}, err
 		}
 		cfg.MaxBinarySize, err = envInt64(lookupEnv, "MAX_BINARY_SIZE", cfg.MaxBinarySize)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.MaxMetadataSize, err = envInt64(lookupEnv, "MAX_METADATA_SIZE", cfg.MaxMetadataSize)
 		if err != nil {
 			return Config{}, err
 		}
@@ -123,6 +131,9 @@ func (c Config) Validate() error {
 	}
 	if c.MaxBinarySize <= 0 {
 		return errors.New("maximum binary size must be positive")
+	}
+	if c.MaxMetadataSize <= 0 {
+		return errors.New("maximum metadata size must be positive")
 	}
 	return nil
 }

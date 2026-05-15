@@ -2,7 +2,7 @@
 
 GophKeeper is a client-server application for securely storing and synchronizing private user data.
 
-The repository currently contains the project skeleton, validated client/server configuration, and build version information.
+The repository currently contains the project skeleton, validated client/server configuration, build version information, and transport-independent domain models.
 
 ## Structure
 
@@ -93,6 +93,7 @@ Required settings:
 | `SESSION_TTL` | `-session-ttl` | `24h` |
 | `SHUTDOWN_TIMEOUT` | `-shutdown-timeout` | `10s` |
 | `MAX_BINARY_SIZE` | `-max-binary-size` | `10485760` |
+| `MAX_METADATA_SIZE` | `-max-metadata-size` | `65536` |
 
 TLS is required by default. Plaintext transport must be enabled explicitly for local development:
 
@@ -125,3 +126,26 @@ go run ./cmd/server
 ```bash
 go run ./cmd/client -server 127.0.0.1:3200 -insecure
 ```
+
+## Domain model
+
+The shared `internal/model` package contains transport-independent server domain entities:
+
+- users and encrypted data-key material;
+- opaque server sessions with token hashes;
+- encrypted vault records;
+- record versions, global synchronization revisions, and deletion tombstones;
+- shared domain errors and the four required record types.
+
+Plaintext record data is isolated in `internal/client/model`. It contains credentials, text, binary, bank-card, and metadata structures that must be encrypted before leaving the client. Bank-card display helpers expose only a masked number.
+
+The current record types are:
+
+```text
+credentials
+text
+binary
+bank_card
+```
+
+The model layer does not depend on PostgreSQL, gRPC, or generated protobuf code.
