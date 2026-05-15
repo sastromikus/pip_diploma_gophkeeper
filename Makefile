@@ -1,4 +1,4 @@
-.PHONY: build build-server build-client test fmt vet clean
+.PHONY: build build-server build-client proto test fmt vet clean
 
 BIN_DIR := bin
 SERVER_BIN := $(BIN_DIR)/gophkeeper-server
@@ -27,6 +27,9 @@ build-server: | $(BIN_DIR)
 
 build-client: | $(BIN_DIR)
 	go build -ldflags="$(LDFLAGS)" -o $(CLIENT_BIN) ./cmd/client
+
+proto:
+	./scripts/generate-proto.sh
 
 test:
 	go test ./...

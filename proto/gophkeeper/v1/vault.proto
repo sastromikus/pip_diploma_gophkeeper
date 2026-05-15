@@ -1,0 +1,119 @@
+edition = "2023";
+
+package gophkeeper.v1;
+
+import "google/protobuf/go_features.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/sastromikus/gophkeeper/api/gophkeeper/v1;gophkeeperv1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// VaultService manages encrypted records owned by the authenticated user.
+service VaultService {
+  // CreateRecord stores a new encrypted record.
+  rpc CreateRecord(CreateRecordRequest) returns (RecordResponse);
+
+  // GetRecord returns one active record.
+  rpc GetRecord(GetRecordRequest) returns (RecordResponse);
+
+  // ListRecords returns all active records owned by the authenticated user.
+  rpc ListRecords(ListRecordsRequest) returns (ListRecordsResponse);
+
+  // UpdateRecord updates a record if its version still matches.
+  rpc UpdateRecord(UpdateRecordRequest) returns (RecordResponse);
+
+  // DeleteRecord creates a tombstone if its version still matches.
+  rpc DeleteRecord(DeleteRecordRequest) returns (DeleteRecordResponse);
+
+  // SyncRecords returns all changes after the supplied server revision.
+  rpc SyncRecords(SyncRecordsRequest) returns (SyncRecordsResponse);
+}
+
+// RecordType identifies the plaintext schema encrypted inside a record.
+enum RecordType {
+  RECORD_TYPE_UNSPECIFIED = 0;
+  RECORD_TYPE_CREDENTIALS = 1;
+  RECORD_TYPE_TEXT = 2;
+  RECORD_TYPE_BINARY = 3;
+  RECORD_TYPE_BANK_CARD = 4;
+}
+
+// Record contains encrypted payloads and server-managed synchronization data.
+// The user ID is deliberately omitted and is taken from authorization metadata.
+message Record {
+  string id = 1;
+  RecordType type = 2;
+  bytes encrypted_payload = 3;
+  bytes encrypted_metadata = 4;
+  bytes payload_nonce = 5;
+  bytes metadata_nonce = 6;
+  int64 version = 7;
+  int64 revision = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+  google.protobuf.Timestamp deleted_at = 11;
+}
+
+// EncryptedRecordData contains client-produced encrypted record fields.
+message EncryptedRecordData {
+  RecordType type = 1;
+  bytes encrypted_payload = 2;
+  bytes encrypted_metadata = 3;
+  bytes payload_nonce = 4;
+  bytes metadata_nonce = 5;
+}
+
+// CreateRecordRequest creates a record with a client-generated UUID.
+message CreateRecordRequest {
+  string id = 1;
+  EncryptedRecordData data = 2;
+}
+
+// GetRecordRequest identifies a record owned by the authenticated user.
+message GetRecordRequest {
+  string id = 1;
+}
+
+// ListRecordsRequest requests the current active vault contents.
+message ListRecordsRequest {}
+
+// ListRecordsResponse contains active records only.
+message ListRecordsResponse {
+  repeated Record records = 1;
+}
+
+// UpdateRecordRequest replaces encrypted fields using optimistic locking.
+message UpdateRecordRequest {
+  string id = 1;
+  int64 expected_version = 2;
+  EncryptedRecordData data = 3;
+}
+
+// DeleteRecordRequest deletes a record using optimistic locking.
+message DeleteRecordRequest {
+  string id = 1;
+  int64 expected_version = 2;
+}
+
+// DeleteRecordResponse returns the server-created tombstone.
+message DeleteRecordResponse {
+  Record record = 1;
+}
+
+// RecordResponse wraps one record.
+message RecordResponse {
+  Record record = 1;
+}
+
+// SyncRecordsRequest uses a server revision as an exclusive cursor.
+message SyncRecordsRequest {
+  int64 after_revision = 1;
+  uint32 limit = 2;
+}
+
+// SyncRecordsResponse contains ordered changes and the next durable cursor.
+message SyncRecordsResponse {
+  repeated Record records = 1;
+  int64 next_revision = 2;
+  bool has_more = 3;
+}

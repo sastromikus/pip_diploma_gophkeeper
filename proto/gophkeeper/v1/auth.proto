@@ -1,0 +1,64 @@
+edition = "2023";
+
+package gophkeeper.v1;
+
+import "google/protobuf/go_features.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/sastromikus/gophkeeper/api/gophkeeper/v1;gophkeeperv1";
+option features.(pb.go).api_level = API_OPAQUE;
+
+// AuthService manages user registration and server-side sessions.
+service AuthService {
+  // Register creates a new user and returns an authenticated session.
+  rpc Register(RegisterRequest) returns (RegisterResponse);
+
+  // Login authenticates an existing user and returns an authenticated session.
+  rpc Login(LoginRequest) returns (LoginResponse);
+
+  // Logout revokes the current authenticated session.
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+}
+
+// RegisterRequest contains authentication data and a client-encrypted data key.
+message RegisterRequest {
+  string login = 1;
+  string password = 2;
+  bytes encrypted_data_key = 3;
+  bytes key_salt = 4;
+  bytes key_nonce = 5;
+  uint32 key_derivation_version = 6;
+}
+
+// RegisterResponse contains a newly created authenticated session.
+message RegisterResponse {
+  Session session = 1;
+}
+
+// LoginRequest contains account credentials.
+message LoginRequest {
+  string login = 1;
+  string password = 2;
+}
+
+// LoginResponse contains a session and the material required to unlock the
+// client-encrypted data key locally.
+message LoginResponse {
+  Session session = 1;
+  bytes encrypted_data_key = 2;
+  bytes key_salt = 3;
+  bytes key_nonce = 4;
+  uint32 key_derivation_version = 5;
+}
+
+// LogoutRequest revokes the session identified by authorization metadata.
+message LogoutRequest {}
+
+// LogoutResponse confirms successful session revocation.
+message LogoutResponse {}
+
+// Session contains the bearer token returned only to the authenticated client.
+message Session {
+  string token = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}

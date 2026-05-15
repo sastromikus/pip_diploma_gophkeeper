@@ -149,3 +149,41 @@ bank_card
 ```
 
 The model layer does not depend on PostgreSQL, gRPC, or generated protobuf code.
+
+## gRPC protocol
+
+The public contract is defined in:
+
+```text
+proto/gophkeeper/v1/auth.proto
+proto/gophkeeper/v1/vault.proto
+```
+
+The schema uses Protobuf Edition 2023 with the Go Opaque API enabled explicitly.
+Generated files must be placed in `api/gophkeeper/v1` and must never be edited
+manually.
+
+Pinned generators for this project:
+
+```cmd
+go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
+go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.6.2
+```
+
+`protoc` itself must also be installed and available through `PATH`. On Windows,
+make sure `%USERPROFILE%\go\bin` is in `PATH`, then generate code with:
+
+```cmd
+scripts\generate-proto.cmd
+```
+
+On Linux and macOS:
+
+```sh
+./scripts/generate-proto.sh
+```
+
+Authentication is sent through `authorization: Bearer <token>` metadata. Vault
+messages intentionally omit `user_id`: the server derives ownership from the
+validated session. Synchronization uses a monotonic server revision and includes
+tombstones for deleted records.
