@@ -281,3 +281,23 @@ The authentication layer supports registration, login, bearer-token validation, 
 - login returns the encrypted data-key container for local client unlocking.
 
 The unary authorization interceptor stores the authenticated user and session IDs in the request context. Vault handlers must obtain ownership information from this context rather than accepting a client-provided user ID.
+
+## Client-side encryption
+
+GophKeeper encrypts vault contents on the client before sending them to the server.
+
+The client generates a random 256-bit data encryption key (DEK). The DEK encrypts record payloads and metadata with AES-256-GCM. Payload and metadata use independent random nonces, and authenticated additional data binds ciphertext to the record type and encrypted part.
+
+The DEK is protected by a key encryption key derived from the master password with Argon2id. The server stores only the encrypted DEK, its salt, nonce, and key-derivation format version. Cryptographic format version `1` currently means:
+
+```text
+Argon2id: time=3, memory=64 MiB, parallelism=2, output=32 bytes
+AES-256-GCM
+16-byte KDF salt
+12-byte GCM nonce
+JSON payload schema v1
+```
+
+At the current project stage, the account password is also used as the master password. It is sent to the server over TLS for authentication, while encryption and decryption are performed only by the client. This protects stored data from a database-only compromise, but it is not a zero-knowledge design against a malicious server. This limitation must remain explicit unless separate account and master passwords are introduced later.
+
+Client cryptographic code is located in `internal/client/crypto`. Callers should overwrite a DEK with `crypto.Wipe` after use where practical. Go does not guarantee complete removal of all compiler or runtime copies from memory.
