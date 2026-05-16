@@ -217,3 +217,35 @@ Authentication is sent through `authorization: Bearer <token>` metadata. Vault
 messages intentionally omit `user_id`: the server derives ownership from the
 validated session. Synchronization uses a monotonic server revision and includes
 tombstones for deleted records.
+
+## PostgreSQL storage and migrations
+
+The server persistence layer uses `pgx/v5` and a concurrency-safe `pgxpool`.
+Schema migrations are versioned SQL files embedded into the server binary and
+applied through `goose`; they do not depend on the process working directory.
+
+The initial schema creates:
+
+- `users` with unique logins and encrypted data-key material;
+- `sessions` with unique token hashes, expiration, and revocation timestamps;
+- `records` with encrypted payloads, optimistic versions, monotonic revisions,
+  and minimal deletion tombstones;
+- `records_revision_seq`, which provides the synchronization cursor independently
+  from client clocks.
+
+Migration files are stored under:
+
+```text
+internal/server/storage/postgres/migrations
+```
+
+Repository integration tests require a dedicated disposable PostgreSQL database.
+They are skipped unless `GOPHKEEPER_TEST_DATABASE_DSN` is set:
+
+```cmd
+set GOPHKEEPER_TEST_DATABASE_DSN=postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable
+go test ./internal/server/storage/postgres -run Integration -v
+```
+
+Do not point this variable at a production database. The test applies migrations
+and creates temporary user-owned data.

@@ -1,4 +1,4 @@
-.PHONY: build build-server build-client proto test fmt vet clean
+.PHONY: build build-server build-client proto test test-integration fmt vet clean
 
 BIN_DIR := bin
 SERVER_BIN := $(BIN_DIR)/gophkeeper-server
@@ -33,6 +33,9 @@ proto:
 
 test:
 	go test ./...
+
+test-integration:
+	go test ./internal/server/storage/postgres -run Integration -v
 
 fmt:
 	gofmt -w .
