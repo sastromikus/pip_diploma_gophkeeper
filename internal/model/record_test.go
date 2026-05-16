@@ -8,7 +8,7 @@ import (
 
 func TestRecordValidate(t *testing.T) {
 	record := validRecord()
-	limits := RecordLimits{MaxPayloadSize: 1024, MaxMetadataSize: 1024}
+	limits := RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}
 	if err := record.Validate(limits); err != nil {
 		t.Fatalf("Validate() error = %v", err)
 	}
@@ -20,7 +20,7 @@ func TestRecordValidate(t *testing.T) {
 func TestRecordValidateRejectsOversizedPayload(t *testing.T) {
 	record := validRecord()
 	record.EncryptedPayload = []byte("too large")
-	err := record.Validate(RecordLimits{MaxPayloadSize: 2, MaxMetadataSize: 1024})
+	err := record.Validate(RecordLimits{MaxEncryptedPayloadSize: 2, MaxEncryptedMetadataSize: 1024})
 	if !errors.Is(err, ErrPayloadTooLarge) {
 		t.Fatalf("Validate() error = %v, want ErrPayloadTooLarge", err)
 	}
@@ -49,5 +49,31 @@ func validRecord() Record {
 		Revision:          1,
 		CreatedAt:         createdAt,
 		UpdatedAt:         createdAt,
+	}
+}
+
+func TestRecordValidateTombstone(t *testing.T) {
+	record := validRecord()
+	deletedAt := record.UpdatedAt.Add(time.Second)
+	record.DeletedAt = &deletedAt
+	record.EncryptedPayload = nil
+	record.EncryptedMetadata = nil
+	record.PayloadNonce = nil
+	record.MetadataNonce = nil
+
+	limits := RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}
+	if err := record.Validate(limits); err != nil {
+		t.Fatalf("Validate() tombstone error = %v", err)
+	}
+}
+
+func TestRecordValidateRejectsTombstoneWithPayload(t *testing.T) {
+	record := validRecord()
+	deletedAt := record.UpdatedAt.Add(time.Second)
+	record.DeletedAt = &deletedAt
+
+	limits := RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}
+	if err := record.Validate(limits); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Validate() error = %v, want ErrInvalidInput", err)
 	}
 }

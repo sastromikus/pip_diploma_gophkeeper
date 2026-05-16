@@ -18,6 +18,17 @@ The repository currently contains the project skeleton, validated client/server 
 
 ## Build
 
+On Windows, use the provided script:
+
+```cmd
+set VERSION=1.0.0
+set BUILD_DATE=2026-06-09T03:00:00Z
+set COMMIT=abc1234
+scripts\build.cmd
+```
+
+On Linux and macOS:
+
 ```bash
 make build
 ```
@@ -61,7 +72,17 @@ go build -ldflags="-X 'github.com/sastromikus/gophkeeper/internal/version.Versio
 
 ## Test
 
+On Windows:
+
+```cmd
+scripts\check.cmd
+```
+
+Or run directly:
+
 ```bash
+gofmt -w .
+go mod tidy
 go test ./...
 go vet ./...
 ```
@@ -92,8 +113,8 @@ Required settings:
 | `SERVER_INSECURE` | `-insecure` | `false` |
 | `SESSION_TTL` | `-session-ttl` | `24h` |
 | `SHUTDOWN_TIMEOUT` | `-shutdown-timeout` | `10s` |
-| `MAX_BINARY_SIZE` | `-max-binary-size` | `10485760` |
-| `MAX_METADATA_SIZE` | `-max-metadata-size` | `65536` |
+| `MAX_ENCRYPTED_PAYLOAD_SIZE` | `-max-encrypted-payload-size` | `15728640` |
+| `MAX_ENCRYPTED_METADATA_SIZE` | `-max-encrypted-metadata-size` | `66560` |
 
 TLS is required by default. Plaintext transport must be enabled explicitly for local development:
 
@@ -137,7 +158,7 @@ The shared `internal/model` package contains transport-independent server domain
 - record versions, global synchronization revisions, and deletion tombstones;
 - shared domain errors and the four required record types.
 
-Plaintext record data is isolated in `internal/client/model`. It contains credentials, text, binary, bank-card, and metadata structures that must be encrypted before leaving the client. Bank-card display helpers expose only a masked number.
+Plaintext record data is isolated in `internal/client/model`. It contains credentials, text, binary, bank-card, and metadata structures that must be encrypted before leaving the client. Bank-card display helpers expose only a masked number. Client-side plaintext limits are separate from server-side encrypted payload limits, because JSON/Base64 serialization and authenticated encryption add overhead.
 
 The current record types are:
 
@@ -149,6 +170,15 @@ bank_card
 ```
 
 The model layer does not depend on PostgreSQL, gRPC, or generated protobuf code.
+
+
+### Security model decisions
+
+The account password is used only for server authentication. A separate master password is intended for deriving the local key-encryption key and must never be sent to the server. The server stores only the encrypted data key, its salt and nonce, and the key-derivation format version.
+
+Deletion is represented by a minimal tombstone. A tombstone retains identifiers, type, version, revision, and timestamps, but does not retain encrypted payload, encrypted metadata, or nonces.
+
+Synchronization uses an exclusive server revision cursor. Results must be ordered by revision ascending. A zero limit means the server default, and the server must enforce a maximum. `next_revision` is the revision of the last returned change; for an empty page it remains equal to `after_revision`. The client persists the cursor only after applying the whole page successfully.
 
 ## gRPC protocol
 

@@ -35,12 +35,21 @@ func TestValidateLogin(t *testing.T) {
 
 func validUser() User {
 	return User{
-		ID:               ID("550e8400-e29b-41d4-a716-446655440000"),
-		Login:            "user@example.com",
-		PasswordHash:     "encoded-password-hash",
-		EncryptedDataKey: []byte("encrypted-key"),
-		KeySalt:          []byte("salt"),
-		KeyNonce:         []byte("nonce"),
-		CreatedAt:        time.Unix(1, 0).UTC(),
+		ID:                   ID("550e8400-e29b-41d4-a716-446655440000"),
+		Login:                "user@example.com",
+		PasswordHash:         "encoded-password-hash",
+		EncryptedDataKey:     []byte("encrypted-key"),
+		KeySalt:              []byte("salt"),
+		KeyNonce:             []byte("nonce"),
+		KeyDerivationVersion: 1,
+		CreatedAt:            time.Unix(1, 0).UTC(),
+	}
+}
+
+func TestUserValidateRejectsMissingKeyDerivationVersion(t *testing.T) {
+	user := validUser()
+	user.KeyDerivationVersion = 0
+	if err := user.Validate(); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Validate() error = %v, want ErrInvalidInput", err)
 	}
 }

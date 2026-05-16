@@ -13,8 +13,8 @@ func TestParseDefaultsAndFlags(t *testing.T) {
 		"-a", "localhost:4000",
 		"-session-ttl", "2h",
 		"-shutdown-timeout", "15s",
-		"-max-binary-size", "2048",
-		"-max-metadata-size", "512",
+		"-max-encrypted-payload-size", "2048",
+		"-max-encrypted-metadata-size", "512",
 	}, nil)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -32,23 +32,23 @@ func TestParseDefaultsAndFlags(t *testing.T) {
 	if cfg.ShutdownTimeout != 15*time.Second {
 		t.Fatalf("ShutdownTimeout = %v, want %v", cfg.ShutdownTimeout, 15*time.Second)
 	}
-	if cfg.MaxBinarySize != 2048 {
-		t.Fatalf("MaxBinarySize = %d, want %d", cfg.MaxBinarySize, 2048)
+	if cfg.MaxEncryptedPayloadSize != 2048 {
+		t.Fatalf("MaxEncryptedPayloadSize = %d, want %d", cfg.MaxEncryptedPayloadSize, 2048)
 	}
-	if cfg.MaxMetadataSize != 512 {
-		t.Fatalf("MaxMetadataSize = %d, want %d", cfg.MaxMetadataSize, 512)
+	if cfg.MaxEncryptedMetadataSize != 512 {
+		t.Fatalf("MaxEncryptedMetadataSize = %d, want %d", cfg.MaxEncryptedMetadataSize, 512)
 	}
 }
 
 func TestParseEnvironmentOverridesFlags(t *testing.T) {
 	env := map[string]string{
-		"SERVER_ADDRESS":    "127.0.0.1:5000",
-		"DATABASE_DSN":      "postgres://env/gophkeeper",
-		"SERVER_INSECURE":   "true",
-		"SESSION_TTL":       "3h",
-		"MAX_BINARY_SIZE":   "4096",
-		"MAX_METADATA_SIZE": "1024",
-		"SHUTDOWN_TIMEOUT":  "20s",
+		"SERVER_ADDRESS":              "127.0.0.1:5000",
+		"DATABASE_DSN":                "postgres://env/gophkeeper",
+		"SERVER_INSECURE":             "true",
+		"SESSION_TTL":                 "3h",
+		"MAX_ENCRYPTED_PAYLOAD_SIZE":  "4096",
+		"MAX_ENCRYPTED_METADATA_SIZE": "1024",
+		"SHUTDOWN_TIMEOUT":            "20s",
 	}
 
 	cfg, err := Parse([]string{
@@ -108,12 +108,12 @@ func TestParseRejectsUnexpectedArguments(t *testing.T) {
 
 func TestValidateTLSModes(t *testing.T) {
 	base := Config{
-		Address:         defaultAddress,
-		DatabaseDSN:     "postgres://localhost/gophkeeper",
-		SessionTTL:      defaultSessionTTL,
-		ShutdownTimeout: defaultShutdownTimeout,
-		MaxBinarySize:   defaultMaxBinarySize,
-		MaxMetadataSize: defaultMaxMetadataSize,
+		Address:                  defaultAddress,
+		DatabaseDSN:              "postgres://localhost/gophkeeper",
+		SessionTTL:               defaultSessionTTL,
+		ShutdownTimeout:          defaultShutdownTimeout,
+		MaxEncryptedPayloadSize:  defaultMaxEncryptedPayloadSize,
+		MaxEncryptedMetadataSize: defaultMaxEncryptedMetadataSize,
 	}
 
 	tests := []struct {

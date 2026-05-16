@@ -12,24 +12,24 @@ import (
 )
 
 const (
-	defaultAddress         = "127.0.0.1:3200"
-	defaultSessionTTL      = 24 * time.Hour
-	defaultShutdownTimeout = 10 * time.Second
-	defaultMaxBinarySize   = int64(10 << 20) // 10 MiB.
-	defaultMaxMetadataSize = int64(64 << 10) // 64 KiB.
+	defaultAddress                  = "127.0.0.1:3200"
+	defaultSessionTTL               = 24 * time.Hour
+	defaultShutdownTimeout          = 10 * time.Second
+	defaultMaxEncryptedPayloadSize  = int64(15 << 20) // Allows JSON/Base64 and AEAD overhead for a 10 MiB binary.
+	defaultMaxEncryptedMetadataSize = int64((64 << 10) + 1024)
 )
 
 // Config contains all runtime settings required by the server.
 type Config struct {
-	Address         string
-	DatabaseDSN     string
-	TLSCertFile     string
-	TLSKeyFile      string
-	Insecure        bool
-	SessionTTL      time.Duration
-	ShutdownTimeout time.Duration
-	MaxBinarySize   int64
-	MaxMetadataSize int64
+	Address                  string
+	DatabaseDSN              string
+	TLSCertFile              string
+	TLSKeyFile               string
+	Insecure                 bool
+	SessionTTL               time.Duration
+	ShutdownTimeout          time.Duration
+	MaxEncryptedPayloadSize  int64
+	MaxEncryptedMetadataSize int64
 }
 
 // LookupEnv returns an environment variable value by name.
@@ -39,11 +39,11 @@ type LookupEnv func(string) (string, bool)
 // environment variables. Environment variables have the highest priority.
 func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 	cfg := Config{
-		Address:         defaultAddress,
-		SessionTTL:      defaultSessionTTL,
-		ShutdownTimeout: defaultShutdownTimeout,
-		MaxBinarySize:   defaultMaxBinarySize,
-		MaxMetadataSize: defaultMaxMetadataSize,
+		Address:                  defaultAddress,
+		SessionTTL:               defaultSessionTTL,
+		ShutdownTimeout:          defaultShutdownTimeout,
+		MaxEncryptedPayloadSize:  defaultMaxEncryptedPayloadSize,
+		MaxEncryptedMetadataSize: defaultMaxEncryptedMetadataSize,
 	}
 
 	flags := flag.NewFlagSet("gophkeeper-server", flag.ContinueOnError)
@@ -54,8 +54,8 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 	flags.BoolVar(&cfg.Insecure, "insecure", cfg.Insecure, "allow plaintext transport for local development")
 	flags.DurationVar(&cfg.SessionTTL, "session-ttl", cfg.SessionTTL, "session lifetime")
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", cfg.ShutdownTimeout, "graceful shutdown timeout")
-	flags.Int64Var(&cfg.MaxBinarySize, "max-binary-size", cfg.MaxBinarySize, "maximum binary record size in bytes")
-	flags.Int64Var(&cfg.MaxMetadataSize, "max-metadata-size", cfg.MaxMetadataSize, "maximum record metadata size in bytes")
+	flags.Int64Var(&cfg.MaxEncryptedPayloadSize, "max-encrypted-payload-size", cfg.MaxEncryptedPayloadSize, "maximum encrypted record payload size in bytes")
+	flags.Int64Var(&cfg.MaxEncryptedMetadataSize, "max-encrypted-metadata-size", cfg.MaxEncryptedMetadataSize, "maximum encrypted record metadata size in bytes")
 
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse server flags: %w", err)
@@ -83,11 +83,11 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 		if err != nil {
 			return Config{}, err
 		}
-		cfg.MaxBinarySize, err = envInt64(lookupEnv, "MAX_BINARY_SIZE", cfg.MaxBinarySize)
+		cfg.MaxEncryptedPayloadSize, err = envInt64(lookupEnv, "MAX_ENCRYPTED_PAYLOAD_SIZE", cfg.MaxEncryptedPayloadSize)
 		if err != nil {
 			return Config{}, err
 		}
-		cfg.MaxMetadataSize, err = envInt64(lookupEnv, "MAX_METADATA_SIZE", cfg.MaxMetadataSize)
+		cfg.MaxEncryptedMetadataSize, err = envInt64(lookupEnv, "MAX_ENCRYPTED_METADATA_SIZE", cfg.MaxEncryptedMetadataSize)
 		if err != nil {
 			return Config{}, err
 		}
@@ -129,11 +129,11 @@ func (c Config) Validate() error {
 	if c.ShutdownTimeout <= 0 {
 		return errors.New("shutdown timeout must be positive")
 	}
-	if c.MaxBinarySize <= 0 {
-		return errors.New("maximum binary size must be positive")
+	if c.MaxEncryptedPayloadSize <= 0 {
+		return errors.New("maximum encrypted payload size must be positive")
 	}
-	if c.MaxMetadataSize <= 0 {
-		return errors.New("maximum metadata size must be positive")
+	if c.MaxEncryptedMetadataSize <= 0 {
+		return errors.New("maximum encrypted metadata size must be positive")
 	}
 	return nil
 }

@@ -13,13 +13,14 @@ const (
 
 // User describes a registered GophKeeper account.
 type User struct {
-	ID               ID
-	Login            string
-	PasswordHash     string
-	EncryptedDataKey []byte
-	KeySalt          []byte
-	KeyNonce         []byte
-	CreatedAt        time.Time
+	ID                   ID
+	Login                string
+	PasswordHash         string
+	EncryptedDataKey     []byte
+	KeySalt              []byte
+	KeyNonce             []byte
+	KeyDerivationVersion uint32
+	CreatedAt            time.Time
 }
 
 // Validate checks whether the user model is complete enough for persistence.
@@ -41,6 +42,9 @@ func (user User) Validate() error {
 	}
 	if len(user.KeyNonce) == 0 {
 		return fmt.Errorf("%w: key nonce is required", ErrInvalidInput)
+	}
+	if user.KeyDerivationVersion == 0 {
+		return fmt.Errorf("%w: key derivation version must be positive", ErrInvalidInput)
 	}
 	if user.CreatedAt.IsZero() {
 		return fmt.Errorf("%w: creation time is required", ErrInvalidInput)

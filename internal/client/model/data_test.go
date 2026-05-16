@@ -45,3 +45,17 @@ func TestBankCardMaskedNumber(t *testing.T) {
 		t.Fatalf("MaskedNumber() = %q, want %q", got, want)
 	}
 }
+
+func TestBinaryValidateRejectsPathInFilename(t *testing.T) {
+	binary := Binary{Filename: "../secret.bin", MIMEType: "application/octet-stream", Data: []byte{1}}
+	if err := binary.Validate(1024); err == nil {
+		t.Fatal("Validate() error = nil, want unsafe filename error")
+	}
+}
+
+func TestBankCardMaskedNumberDoesNotExposeShortValue(t *testing.T) {
+	card := BankCard{Number: "123"}
+	if got, want := card.MaskedNumber(), "****"; got != want {
+		t.Fatalf("MaskedNumber() = %q, want %q", got, want)
+	}
+}

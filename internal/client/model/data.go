@@ -2,6 +2,8 @@ package model
 
 import (
 	"fmt"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -10,7 +12,21 @@ const (
 	MaxTitleLength = 512
 	// MaxMetadataLength is the maximum plaintext metadata length in bytes.
 	MaxMetadataLength = 64 * 1024
+	// MaxCredentialLoginLength is the maximum credentials login length in bytes.
+	MaxCredentialLoginLength = 1024
+	// MaxCredentialPasswordLength is the maximum credentials password length in bytes.
+	MaxCredentialPasswordLength = 16 * 1024
+	// MaxTextBodyLength is the maximum plaintext text body length in bytes.
+	MaxTextBodyLength = 10 * 1024 * 1024
+	// MaxFilenameLength is the maximum stored filename length in bytes.
+	MaxFilenameLength = 255
+	// MaxMIMETypeLength is the maximum MIME type length in bytes.
+	MaxMIMETypeLength = 255
+	// MaxCardHolderLength is the maximum card holder length in bytes.
+	MaxCardHolderLength = 255
 )
+
+var expiryPattern = regexp.MustCompile(`^(0[1-9]|1[0-2])/[0-9]{2}$`)
 
 // Metadata contains arbitrary textual information associated with a record.
 type Metadata struct {
@@ -40,8 +56,14 @@ func (credentials Credentials) Validate() error {
 	if strings.TrimSpace(credentials.Login) == "" {
 		return fmt.Errorf("credentials login is required")
 	}
+	if len(credentials.Login) > MaxCredentialLoginLength {
+		return fmt.Errorf("credentials login exceeds %d bytes", MaxCredentialLoginLength)
+	}
 	if credentials.Password == "" {
 		return fmt.Errorf("credentials password is required")
+	}
+	if len(credentials.Password) > MaxCredentialPasswordLength {
+		return fmt.Errorf("credentials password exceeds %d bytes", MaxCredentialPasswordLength)
 	}
 	return nil
 }
@@ -60,6 +82,9 @@ func (text Text) Validate() error {
 	if text.Body == "" {
 		return fmt.Errorf("text body is required")
 	}
+	if len(text.Body) > MaxTextBodyLength {
+		return fmt.Errorf("text body exceeds %d bytes", MaxTextBodyLength)
+	}
 	return nil
 }
 
@@ -72,11 +97,21 @@ type Binary struct {
 
 // Validate checks required binary record fields.
 func (binary Binary) Validate(maxSize int64) error {
-	if strings.TrimSpace(binary.Filename) == "" {
+	filename := strings.TrimSpace(binary.Filename)
+	if filename == "" {
 		return fmt.Errorf("binary filename is required")
+	}
+	if filename != filepath.Base(filename) || filename == "." || filename == ".." {
+		return fmt.Errorf("binary filename must not contain a path")
+	}
+	if len(filename) > MaxFilenameLength {
+		return fmt.Errorf("binary filename exceeds %d bytes", MaxFilenameLength)
 	}
 	if strings.TrimSpace(binary.MIMEType) == "" {
 		return fmt.Errorf("binary MIME type is required")
+	}
+	if len(binary.MIMEType) > MaxMIMETypeLength {
+		return fmt.Errorf("binary MIME type exceeds %d bytes", MaxMIMETypeLength)
 	}
 	if len(binary.Data) == 0 {
 		return fmt.Errorf("binary data is required")
@@ -99,38 +134,57 @@ type BankCard struct {
 	CVV        string `json:"cvv"`
 }
 
-// Validate checks required bank card fields without logging their values.
+// Validate checks bank card fields without logging their values.
 func (card BankCard) Validate() error {
 	if err := validateTitle(card.Name); err != nil {
 		return fmt.Errorf("bank card name: %w", err)
 	}
-	if strings.TrimSpace(card.Number) == "" {
-		return fmt.Errorf("bank card number is required")
+	digits, ok := cardDigits(card.Number)
+	if !ok || len(digits) < 12 || len(digits) > 19 {
+		return fmt.Errorf("bank card number must contain 12 to 19 digits")
 	}
 	if strings.TrimSpace(card.Holder) == "" {
 		return fmt.Errorf("bank card holder is required")
 	}
-	if strings.TrimSpace(card.ExpiryDate) == "" {
-		return fmt.Errorf("bank card expiry date is required")
+	if len(card.Holder) > MaxCardHolderLength {
+		return fmt.Errorf("bank card holder exceeds %d bytes", MaxCardHolderLength)
 	}
-	if strings.TrimSpace(card.CVV) == "" {
-		return fmt.Errorf("bank card CVV is required")
+	if !expiryPattern.MatchString(card.ExpiryDate) {
+		return fmt.Errorf("bank card expiry date must use MM/YY format")
+	}
+	if len(card.CVV) != 3 && len(card.CVV) != 4 {
+		return fmt.Errorf("bank card CVV must contain 3 or 4 digits")
+	}
+	for i := range card.CVV {
+		if card.CVV[i] < '0' || card.CVV[i] > '9' {
+			return fmt.Errorf("bank card CVV must contain digits only")
+		}
 	}
 	return nil
 }
 
 // MaskedNumber returns a display-safe representation of the card number.
 func (card BankCard) MaskedNumber() string {
-	digits := make([]byte, 0, len(card.Number))
-	for i := range card.Number {
-		if card.Number[i] >= '0' && card.Number[i] <= '9' {
-			digits = append(digits, card.Number[i])
+	digits, ok := cardDigits(card.Number)
+	if !ok || len(digits) < 4 {
+		return "****"
+	}
+	return "**** " + digits[len(digits)-4:]
+}
+
+func cardDigits(number string) (string, bool) {
+	var builder strings.Builder
+	builder.Grow(len(number))
+	for i := range number {
+		switch {
+		case number[i] >= '0' && number[i] <= '9':
+			builder.WriteByte(number[i])
+		case number[i] == ' ' || number[i] == '-':
+		default:
+			return "", false
 		}
 	}
-	if len(digits) <= 4 {
-		return string(digits)
-	}
-	return "**** " + string(digits[len(digits)-4:])
+	return builder.String(), true
 }
 
 func validateTitle(value string) error {

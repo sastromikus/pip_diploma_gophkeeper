@@ -23,8 +23,8 @@ type Record struct {
 
 // RecordLimits defines server-enforced encrypted record size limits.
 type RecordLimits struct {
-	MaxPayloadSize  int64
-	MaxMetadataSize int64
+	MaxEncryptedPayloadSize  int64
+	MaxEncryptedMetadataSize int64
 }
 
 // Validate checks record invariants and encrypted data sizes.
@@ -38,27 +38,36 @@ func (record Record) Validate(limits RecordLimits) error {
 	if err := record.Type.Validate(); err != nil {
 		return err
 	}
-	if len(record.EncryptedPayload) == 0 {
-		return fmt.Errorf("%w: encrypted payload is required", ErrInvalidInput)
+	if limits.MaxEncryptedPayloadSize <= 0 || limits.MaxEncryptedMetadataSize <= 0 {
+		return fmt.Errorf("%w: encrypted record limits must be positive", ErrInvalidInput)
 	}
-	if len(record.EncryptedMetadata) == 0 {
-		return fmt.Errorf("%w: encrypted metadata is required", ErrInvalidInput)
+
+	if record.Deleted() {
+		if len(record.EncryptedPayload) != 0 || len(record.EncryptedMetadata) != 0 ||
+			len(record.PayloadNonce) != 0 || len(record.MetadataNonce) != 0 {
+			return fmt.Errorf("%w: tombstone must not contain encrypted data", ErrInvalidInput)
+		}
+	} else {
+		if len(record.EncryptedPayload) == 0 {
+			return fmt.Errorf("%w: encrypted payload is required", ErrInvalidInput)
+		}
+		if len(record.EncryptedMetadata) == 0 {
+			return fmt.Errorf("%w: encrypted metadata is required", ErrInvalidInput)
+		}
+		if len(record.PayloadNonce) == 0 {
+			return fmt.Errorf("%w: payload nonce is required", ErrInvalidInput)
+		}
+		if len(record.MetadataNonce) == 0 {
+			return fmt.Errorf("%w: metadata nonce is required", ErrInvalidInput)
+		}
+		if int64(len(record.EncryptedPayload)) > limits.MaxEncryptedPayloadSize {
+			return fmt.Errorf("%w: encrypted payload exceeds %d bytes", ErrPayloadTooLarge, limits.MaxEncryptedPayloadSize)
+		}
+		if int64(len(record.EncryptedMetadata)) > limits.MaxEncryptedMetadataSize {
+			return fmt.Errorf("%w: encrypted metadata exceeds %d bytes", ErrPayloadTooLarge, limits.MaxEncryptedMetadataSize)
+		}
 	}
-	if len(record.PayloadNonce) == 0 {
-		return fmt.Errorf("%w: payload nonce is required", ErrInvalidInput)
-	}
-	if len(record.MetadataNonce) == 0 {
-		return fmt.Errorf("%w: metadata nonce is required", ErrInvalidInput)
-	}
-	if limits.MaxPayloadSize <= 0 || limits.MaxMetadataSize <= 0 {
-		return fmt.Errorf("%w: record limits must be positive", ErrInvalidInput)
-	}
-	if int64(len(record.EncryptedPayload)) > limits.MaxPayloadSize {
-		return fmt.Errorf("%w: encrypted payload exceeds %d bytes", ErrPayloadTooLarge, limits.MaxPayloadSize)
-	}
-	if int64(len(record.EncryptedMetadata)) > limits.MaxMetadataSize {
-		return fmt.Errorf("%w: encrypted metadata exceeds %d bytes", ErrPayloadTooLarge, limits.MaxMetadataSize)
-	}
+
 	if record.Version < 1 {
 		return fmt.Errorf("%w: record version must be positive", ErrInvalidInput)
 	}
@@ -71,8 +80,8 @@ func (record Record) Validate(limits RecordLimits) error {
 	if record.UpdatedAt.Before(record.CreatedAt) {
 		return fmt.Errorf("%w: record update precedes creation", ErrInvalidInput)
 	}
-	if record.DeletedAt != nil && record.DeletedAt.Before(record.CreatedAt) {
-		return fmt.Errorf("%w: record deletion precedes creation", ErrInvalidInput)
+	if record.DeletedAt != nil && record.DeletedAt.Before(record.UpdatedAt) {
+		return fmt.Errorf("%w: record deletion precedes last update", ErrInvalidInput)
 	}
 	return nil
 }
