@@ -6,6 +6,12 @@ import (
 	"testing"
 )
 
+func TestMigrationTableName(t *testing.T) {
+	if migrationTableName != "gophkeeper_goose_db_version" {
+		t.Fatalf("migrationTableName = %q", migrationTableName)
+	}
+}
+
 func TestEmbeddedInitialMigration(t *testing.T) {
 	contents, err := fs.ReadFile(migrationFiles, "migrations/00001_initial.sql")
 	if err != nil {
@@ -18,7 +24,7 @@ func TestEmbeddedInitialMigration(t *testing.T) {
 		"CREATE TABLE users",
 		"CREATE TABLE sessions",
 		"CREATE TABLE records",
-		"CREATE SEQUENCE records_revision_seq",
+		"CREATE SEQUENCE IF NOT EXISTS gophkeeper_records_revision_seq",
 		"records_active_or_tombstone",
 		"-- +goose Down",
 	}

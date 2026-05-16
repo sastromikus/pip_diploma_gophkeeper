@@ -27,18 +27,30 @@ func TestRepositoriesIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open() error = %v", err)
 	}
-	defer database.Close()
+	t.Cleanup(database.Close)
+
+	var usersTableExists bool
+	if err := database.Pool().QueryRow(ctx, `SELECT to_regclass('public.users') IS NOT NULL`).Scan(&usersTableExists); err != nil {
+		t.Fatalf("check migrated schema: %v", err)
+	}
+	if !usersTableExists {
+		t.Fatal("migration completed without creating the users table")
+	}
 
 	userID := mustID(t, "11111111-1111-4111-8111-111111111111")
 	sessionID := mustID(t, "22222222-2222-4222-8222-222222222222")
 	recordID := mustID(t, "33333333-3333-4333-8333-333333333333")
 	login := fmt.Sprintf("integration-%d", time.Now().UnixNano())
 
-	_, _ = database.Pool().Exec(ctx, "DELETE FROM users WHERE id = $1", userID.String())
+	if _, err := database.Pool().Exec(ctx, "DELETE FROM users WHERE id = $1", userID.String()); err != nil {
+		t.Fatalf("clean stale integration data: %v", err)
+	}
 	t.Cleanup(func() {
 		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cleanupCancel()
-		_, _ = database.Pool().Exec(cleanupCtx, "DELETE FROM users WHERE id = $1", userID.String())
+		if _, err := database.Pool().Exec(cleanupCtx, "DELETE FROM users WHERE id = $1", userID.String()); err != nil {
+			t.Errorf("clean integration data: %v", err)
+		}
 	})
 
 	users := NewUserRepository(database.Pool())

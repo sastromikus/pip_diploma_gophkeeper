@@ -1,6 +1,6 @@
 -- +goose Up
 -- +goose StatementBegin
-CREATE SEQUENCE records_revision_seq AS BIGINT START WITH 1;
+CREATE SEQUENCE IF NOT EXISTS gophkeeper_records_revision_seq AS BIGINT START WITH 1;
 
 CREATE TABLE users (
     id UUID PRIMARY KEY,
@@ -36,7 +36,7 @@ CREATE TABLE records (
     payload_nonce BYTEA,
     metadata_nonce BYTEA,
     version BIGINT NOT NULL CHECK (version > 0),
-    revision BIGINT NOT NULL UNIQUE DEFAULT nextval('records_revision_seq'),
+    revision BIGINT NOT NULL UNIQUE DEFAULT nextval('gophkeeper_records_revision_seq'),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     deleted_at TIMESTAMPTZ,
@@ -71,5 +71,5 @@ CREATE INDEX records_user_active_idx ON records(user_id, id) WHERE deleted_at IS
 DROP TABLE IF EXISTS records;
 DROP TABLE IF EXISTS sessions;
 DROP TABLE IF EXISTS users;
-DROP SEQUENCE IF EXISTS records_revision_seq;
+DROP SEQUENCE IF EXISTS gophkeeper_records_revision_seq;
 -- +goose StatementEnd

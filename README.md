@@ -230,7 +230,7 @@ The initial schema creates:
 - `sessions` with unique token hashes, expiration, and revocation timestamps;
 - `records` with encrypted payloads, optimistic versions, monotonic revisions,
   and minimal deletion tombstones;
-- `records_revision_seq`, which provides the synchronization cursor independently
+- `gophkeeper_records_revision_seq`, which provides the synchronization cursor independently
   from client clocks.
 
 Migration files are stored under:
@@ -249,3 +249,20 @@ go test ./internal/server/storage/postgres -run Integration -v
 
 Do not point this variable at a production database. The test applies migrations
 and creates temporary user-owned data.
+
+## User registration
+
+The registration use case is implemented in the service layer and is independent
+from gRPC and PostgreSQL details. It:
+
+- validates login, password length, encrypted data-key material, and KDF version;
+- hashes the account password with Argon2id and a random salt;
+- generates UUIDv4 identifiers with `crypto/rand`;
+- creates a 256-bit opaque bearer token;
+- stores only the SHA-256 token hash;
+- creates the user and initial session atomically in one PostgreSQL transaction;
+- maps invalid input, duplicate login, and internal failures to appropriate gRPC statuses.
+
+The raw session token is returned only once to the registering client. The
+account password is used for server authentication and is distinct from the
+master password used by the client to protect the data-encryption key.

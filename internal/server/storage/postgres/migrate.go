@@ -14,6 +14,8 @@ import (
 //go:embed migrations/*.sql
 var migrationFiles embed.FS
 
+const migrationTableName = "gophkeeper_goose_db_version"
+
 var migrationMu sync.Mutex
 
 // Migrate applies all embedded PostgreSQL migrations to the configured database.
@@ -36,6 +38,7 @@ func Migrate(ctx context.Context, dsn string) (resultErr error) {
 	}
 
 	goose.SetBaseFS(migrationFiles)
+	goose.SetTableName(migrationTableName)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return fmt.Errorf("configure migration dialect: %w", err)
 	}

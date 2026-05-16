@@ -30,7 +30,7 @@ func (repository *RecordRepository) Create(ctx context.Context, record model.Rec
             payload_nonce, metadata_nonce, version, revision, created_at, updated_at
         ) VALUES (
             $1, $2, $3, $4, $5, $6, $7,
-            1, nextval('records_revision_seq'), NOW(), NOW()
+            1, nextval('gophkeeper_records_revision_seq'), NOW(), NOW()
         )
         RETURNING `+recordColumns,
 		record.ID.String(), record.UserID.String(), string(record.Type),
@@ -172,7 +172,7 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
             payload_nonce = $6,
             metadata_nonce = $7,
             version = version + 1,
-            revision = nextval('records_revision_seq'),
+            revision = nextval('gophkeeper_records_revision_seq'),
             updated_at = NOW()
         WHERE id = $1 AND user_id = $2
         RETURNING `+recordColumns,
@@ -229,7 +229,7 @@ func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID
             payload_nonce = NULL,
             metadata_nonce = NULL,
             version = version + 1,
-            revision = nextval('records_revision_seq'),
+            revision = nextval('gophkeeper_records_revision_seq'),
             updated_at = NOW(),
             deleted_at = NOW()
         WHERE id = $1 AND user_id = $2
