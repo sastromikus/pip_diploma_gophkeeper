@@ -266,3 +266,18 @@ from gRPC and PostgreSQL details. It:
 The raw session token is returned only once to the registering client. The
 account password is used for server authentication and is distinct from the
 master password used by the client to protect the data-encryption key.
+
+## Authentication sessions
+
+The authentication layer supports registration, login, bearer-token validation, and logout.
+
+- account passwords are verified with Argon2id;
+- successful login creates a new opaque session;
+- only the SHA-256 token hash is stored in PostgreSQL;
+- protected gRPC methods require `authorization: Bearer <token>` metadata;
+- registration and login remain public;
+- expired and revoked sessions are rejected;
+- logout revokes the currently authenticated session;
+- login returns the encrypted data-key container for local client unlocking.
+
+The unary authorization interceptor stores the authenticated user and session IDs in the request context. Vault handlers must obtain ownership information from this context rather than accepting a client-provided user ID.

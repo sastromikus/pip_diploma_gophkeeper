@@ -40,6 +40,11 @@ func (generator TokenGenerator) Generate() (string, []byte, error) {
 	return raw, hash, nil
 }
 
+// Hash returns the stable hash used for session lookup.
+func (generator TokenGenerator) Hash(token string) []byte {
+	return HashToken(token)
+}
+
 // HashToken returns the stable hash used for session lookup.
 func HashToken(token string) []byte {
 	hash := sha256.Sum256([]byte(token))
