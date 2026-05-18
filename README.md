@@ -334,3 +334,26 @@ returned cursor only after the complete page has been applied successfully.
 
 Updates and deletions require `expected_version`. A stale version is returned as
 gRPC `Aborted`, and deletion produces a minimal tombstone without ciphertext.
+
+## Running the gRPC server
+
+The server now assembles PostgreSQL repositories, authentication services, the encrypted vault service, and both gRPC services in one composition root. Migrations are applied before the listener starts.
+
+For local plaintext development in `cmd.exe`:
+
+```cmd
+set DATABASE_DSN=postgres://postgres:password@127.0.0.1:5432/gophkeeper?sslmode=disable
+set SERVER_INSECURE=true
+go run .\cmd\server
+```
+
+For TLS mode, omit `SERVER_INSECURE` and provide both files:
+
+```cmd
+set DATABASE_DSN=postgres://postgres:password@127.0.0.1:5432/gophkeeper?sslmode=disable
+set TLS_CERT_FILE=certificates\server.crt
+set TLS_KEY_FILE=certificates\server.key
+go run .\cmd\server
+```
+
+The server handles `Ctrl+C` and `SIGTERM`, stops accepting new RPC calls, waits for active calls up to `SHUTDOWN_TIMEOUT`, and then closes the PostgreSQL pool. Registration and login are public RPC methods; logout and all vault methods require `authorization: Bearer <token>` metadata.
