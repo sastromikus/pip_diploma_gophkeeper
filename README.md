@@ -320,3 +320,17 @@ After changing protobuf contracts, regenerate generated code before tests:
 scripts\generate-proto.cmd
 scripts\check.cmd
 ```
+
+## Encrypted vault CRUD
+
+The server-side vault layer now exposes authenticated create, get, paginated list,
+optimistic update, soft delete, and revision-based synchronization operations.
+The server never receives plaintext record contents.
+
+`ListRecords` uses an exclusive UUID cursor (`after_id`) and a bounded `limit`.
+`SyncRecords` uses an exclusive monotonically increasing revision cursor. The
+server fetches one extra row to determine `has_more`; clients must persist the
+returned cursor only after the complete page has been applied successfully.
+
+Updates and deletions require `expected_version`. A stale version is returned as
+gRPC `Aborted`, and deletion produces a minimal tombstone without ciphertext.

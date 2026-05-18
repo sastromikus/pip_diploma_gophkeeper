@@ -907,9 +907,13 @@ func (b0 GetRecordRequest_builder) Build() *GetRecordRequest {
 
 // ListRecordsRequest requests the current active vault contents.
 type ListRecordsRequest struct {
-	state         protoimpl.MessageState `protogen:"opaque.v1"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_AfterId     *string                `protobuf:"bytes,1,opt,name=after_id,json=afterId"`
+	xxx_hidden_Limit       uint32                 `protobuf:"varint,2,opt,name=limit"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *ListRecordsRequest) Reset() {
@@ -937,24 +941,91 @@ func (x *ListRecordsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
+func (x *ListRecordsRequest) GetAfterId() string {
+	if x != nil {
+		if x.xxx_hidden_AfterId != nil {
+			return *x.xxx_hidden_AfterId
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *ListRecordsRequest) GetLimit() uint32 {
+	if x != nil {
+		return x.xxx_hidden_Limit
+	}
+	return 0
+}
+
+func (x *ListRecordsRequest) SetAfterId(v string) {
+	x.xxx_hidden_AfterId = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 2)
+}
+
+func (x *ListRecordsRequest) SetLimit(v uint32) {
+	x.xxx_hidden_Limit = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
+}
+
+func (x *ListRecordsRequest) HasAfterId() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
+}
+
+func (x *ListRecordsRequest) HasLimit() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *ListRecordsRequest) ClearAfterId() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 0)
+	x.xxx_hidden_AfterId = nil
+}
+
+func (x *ListRecordsRequest) ClearLimit() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Limit = 0
+}
+
 type ListRecordsRequest_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
+	// after_id is an exclusive UUID cursor. Empty means the first page.
+	AfterId *string
+	// limit is bounded by the server. Zero selects the default.
+	Limit *uint32
 }
 
 func (b0 ListRecordsRequest_builder) Build() *ListRecordsRequest {
 	m0 := &ListRecordsRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
+	if b.AfterId != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 2)
+		x.xxx_hidden_AfterId = b.AfterId
+	}
+	if b.Limit != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Limit = *b.Limit
+	}
 	return m0
 }
 
 // ListRecordsResponse contains active records only.
 type ListRecordsResponse struct {
-	state              protoimpl.MessageState `protogen:"opaque.v1"`
-	xxx_hidden_Records *[]*Record             `protobuf:"bytes,1,rep,name=records"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Records       *[]*Record             `protobuf:"bytes,1,rep,name=records"`
+	xxx_hidden_NextPageToken *string                `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken"`
+	xxx_hidden_HasMore       bool                   `protobuf:"varint,3,opt,name=has_more,json=hasMore"`
+	XXX_raceDetectHookData   protoimpl.RaceDetectHookData
+	XXX_presence             [1]uint32
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *ListRecordsResponse) Reset() {
@@ -991,14 +1062,67 @@ func (x *ListRecordsResponse) GetRecords() []*Record {
 	return nil
 }
 
+func (x *ListRecordsResponse) GetNextPageToken() string {
+	if x != nil {
+		if x.xxx_hidden_NextPageToken != nil {
+			return *x.xxx_hidden_NextPageToken
+		}
+		return ""
+	}
+	return ""
+}
+
+func (x *ListRecordsResponse) GetHasMore() bool {
+	if x != nil {
+		return x.xxx_hidden_HasMore
+	}
+	return false
+}
+
 func (x *ListRecordsResponse) SetRecords(v []*Record) {
 	x.xxx_hidden_Records = &v
+}
+
+func (x *ListRecordsResponse) SetNextPageToken(v string) {
+	x.xxx_hidden_NextPageToken = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 3)
+}
+
+func (x *ListRecordsResponse) SetHasMore(v bool) {
+	x.xxx_hidden_HasMore = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 3)
+}
+
+func (x *ListRecordsResponse) HasNextPageToken() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
+}
+
+func (x *ListRecordsResponse) HasHasMore() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
+}
+
+func (x *ListRecordsResponse) ClearNextPageToken() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_NextPageToken = nil
+}
+
+func (x *ListRecordsResponse) ClearHasMore() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_HasMore = false
 }
 
 type ListRecordsResponse_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	Records []*Record
+	Records       []*Record
+	NextPageToken *string
+	HasMore       *bool
 }
 
 func (b0 ListRecordsResponse_builder) Build() *ListRecordsResponse {
@@ -1006,6 +1130,14 @@ func (b0 ListRecordsResponse_builder) Build() *ListRecordsResponse {
 	b, x := &b0, m0
 	_, _ = b, x
 	x.xxx_hidden_Records = &b.Records
+	if b.NextPageToken != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 3)
+		x.xxx_hidden_NextPageToken = b.NextPageToken
+	}
+	if b.HasMore != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 3)
+		x.xxx_hidden_HasMore = *b.HasMore
+	}
 	return m0
 }
 
@@ -1651,10 +1783,14 @@ const file_gophkeeper_v1_vault_proto_rawDesc = "" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
 	"\x04data\x18\x02 \x01(\v2\".gophkeeper.v1.EncryptedRecordDataR\x04data\"\"\n" +
 	"\x10GetRecordRequest\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"\x14\n" +
-	"\x12ListRecordsRequest\"F\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"E\n" +
+	"\x12ListRecordsRequest\x12\x19\n" +
+	"\bafter_id\x18\x01 \x01(\tR\aafterId\x12\x14\n" +
+	"\x05limit\x18\x02 \x01(\rR\x05limit\"\x89\x01\n" +
 	"\x13ListRecordsResponse\x12/\n" +
-	"\arecords\x18\x01 \x03(\v2\x15.gophkeeper.v1.RecordR\arecords\"\x88\x01\n" +
+	"\arecords\x18\x01 \x03(\v2\x15.gophkeeper.v1.RecordR\arecords\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\x12\x19\n" +
+	"\bhas_more\x18\x03 \x01(\bR\ahasMore\"\x88\x01\n" +
 	"\x13UpdateRecordRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12)\n" +
 	"\x10expected_version\x18\x02 \x01(\x03R\x0fexpectedVersion\x126\n" +

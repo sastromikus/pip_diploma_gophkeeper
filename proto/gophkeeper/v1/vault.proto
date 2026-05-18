@@ -77,11 +77,18 @@ message GetRecordRequest {
 }
 
 // ListRecordsRequest requests the current active vault contents.
-message ListRecordsRequest {}
+message ListRecordsRequest {
+  // after_id is an exclusive UUID cursor. Empty means the first page.
+  string after_id = 1;
+  // limit is bounded by the server. Zero selects the default.
+  uint32 limit = 2;
+}
 
 // ListRecordsResponse contains active records only.
 message ListRecordsResponse {
   repeated Record records = 1;
+  string next_page_token = 2;
+  bool has_more = 3;
 }
 
 // UpdateRecordRequest replaces encrypted fields using optimistic locking.
