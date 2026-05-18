@@ -10,7 +10,7 @@ import (
 	"github.com/sastromikus/gophkeeper/internal/model"
 )
 
-const recordColumns = `id::text, user_id::text, type, encrypted_payload, encrypted_metadata, payload_nonce, metadata_nonce, version, revision, created_at, updated_at, deleted_at`
+const recordColumns = `id::text, user_id::text, type, encryption_version, encrypted_payload, encrypted_metadata, payload_nonce, metadata_nonce, version, revision, created_at, updated_at, deleted_at`
 
 // RecordRepository persists encrypted vault records and synchronization tombstones.
 type RecordRepository struct {
@@ -26,14 +26,14 @@ func NewRecordRepository(pool *pgxpool.Pool) *RecordRepository {
 func (repository *RecordRepository) Create(ctx context.Context, record model.Record) (model.Record, error) {
 	created, err := scanRecord(repository.pool.QueryRow(ctx, `
         INSERT INTO records (
-            id, user_id, type, encrypted_payload, encrypted_metadata,
+            id, user_id, type, encryption_version, encrypted_payload, encrypted_metadata,
             payload_nonce, metadata_nonce, version, revision, created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7,
+            $1, $2, $3, $4, $5, $6, $7, $8,
             1, nextval('gophkeeper_records_revision_seq'), NOW(), NOW()
         )
         RETURNING `+recordColumns,
-		record.ID.String(), record.UserID.String(), string(record.Type),
+		record.ID.String(), record.UserID.String(), string(record.Type), record.EncryptionVersion,
 		record.EncryptedPayload, record.EncryptedMetadata,
 		record.PayloadNonce, record.MetadataNonce,
 	))
@@ -167,16 +167,17 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
 	updated, err := scanRecord(tx.QueryRow(ctx, `
         UPDATE records
         SET type = $3,
-            encrypted_payload = $4,
-            encrypted_metadata = $5,
-            payload_nonce = $6,
-            metadata_nonce = $7,
+            encryption_version = $4,
+            encrypted_payload = $5,
+            encrypted_metadata = $6,
+            payload_nonce = $7,
+            metadata_nonce = $8,
             version = version + 1,
             revision = nextval('gophkeeper_records_revision_seq'),
             updated_at = NOW()
         WHERE id = $1 AND user_id = $2
         RETURNING `+recordColumns,
-		record.ID.String(), record.UserID.String(), string(record.Type),
+		record.ID.String(), record.UserID.String(), string(record.Type), record.EncryptionVersion,
 		record.EncryptedPayload, record.EncryptedMetadata,
 		record.PayloadNonce, record.MetadataNonce,
 	))

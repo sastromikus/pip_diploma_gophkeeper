@@ -104,6 +104,7 @@ func TestRepositoriesIntegration(t *testing.T) {
 		ID:                recordID,
 		UserID:            userID,
 		Type:              model.RecordTypeCredentials,
+		EncryptionVersion: 1,
 		EncryptedPayload:  []byte("ciphertext"),
 		EncryptedMetadata: []byte("metadata"),
 		PayloadNonce:      []byte("payload-nonce"),

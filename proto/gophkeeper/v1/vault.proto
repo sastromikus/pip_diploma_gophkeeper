@@ -43,24 +43,26 @@ enum RecordType {
 message Record {
   string id = 1;
   RecordType type = 2;
-  bytes encrypted_payload = 3;
-  bytes encrypted_metadata = 4;
-  bytes payload_nonce = 5;
-  bytes metadata_nonce = 6;
-  int64 version = 7;
-  int64 revision = 8;
-  google.protobuf.Timestamp created_at = 9;
-  google.protobuf.Timestamp updated_at = 10;
-  google.protobuf.Timestamp deleted_at = 11;
+  uint32 encryption_version = 3;
+  bytes encrypted_payload = 4;
+  bytes encrypted_metadata = 5;
+  bytes payload_nonce = 6;
+  bytes metadata_nonce = 7;
+  int64 version = 8;
+  int64 revision = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+  google.protobuf.Timestamp deleted_at = 12;
 }
 
 // EncryptedRecordData contains client-produced encrypted record fields.
 message EncryptedRecordData {
   RecordType type = 1;
-  bytes encrypted_payload = 2;
-  bytes encrypted_metadata = 3;
-  bytes payload_nonce = 4;
-  bytes metadata_nonce = 5;
+  uint32 encryption_version = 2;
+  bytes encrypted_payload = 3;
+  bytes encrypted_metadata = 4;
+  bytes payload_nonce = 5;
+  bytes metadata_nonce = 6;
 }
 
 // CreateRecordRequest creates a record with a client-generated UUID.

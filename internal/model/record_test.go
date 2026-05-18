@@ -41,6 +41,7 @@ func validRecord() Record {
 		ID:                ID("550e8400-e29b-41d4-a716-446655440000"),
 		UserID:            ID("550e8400-e29b-41d4-a716-446655440001"),
 		Type:              RecordTypeCredentials,
+		EncryptionVersion: 1,
 		EncryptedPayload:  []byte("payload"),
 		EncryptedMetadata: []byte("metadata"),
 		PayloadNonce:      []byte("payload-nonce"),

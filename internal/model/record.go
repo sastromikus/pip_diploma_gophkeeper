@@ -10,6 +10,7 @@ type Record struct {
 	ID                ID
 	UserID            ID
 	Type              RecordType
+	EncryptionVersion uint32
 	EncryptedPayload  []byte
 	EncryptedMetadata []byte
 	PayloadNonce      []byte
@@ -37,6 +38,9 @@ func (record Record) Validate(limits RecordLimits) error {
 	}
 	if err := record.Type.Validate(); err != nil {
 		return err
+	}
+	if record.EncryptionVersion == 0 {
+		return fmt.Errorf("%w: encryption version must be positive", ErrInvalidInput)
 	}
 	if limits.MaxEncryptedPayloadSize <= 0 || limits.MaxEncryptedMetadataSize <= 0 {
 		return fmt.Errorf("%w: encrypted record limits must be positive", ErrInvalidInput)

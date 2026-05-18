@@ -79,15 +79,16 @@ type Record struct {
 	state                        protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Id                *string                `protobuf:"bytes,1,opt,name=id"`
 	xxx_hidden_Type              RecordType             `protobuf:"varint,2,opt,name=type,enum=gophkeeper.v1.RecordType"`
-	xxx_hidden_EncryptedPayload  []byte                 `protobuf:"bytes,3,opt,name=encrypted_payload,json=encryptedPayload"`
-	xxx_hidden_EncryptedMetadata []byte                 `protobuf:"bytes,4,opt,name=encrypted_metadata,json=encryptedMetadata"`
-	xxx_hidden_PayloadNonce      []byte                 `protobuf:"bytes,5,opt,name=payload_nonce,json=payloadNonce"`
-	xxx_hidden_MetadataNonce     []byte                 `protobuf:"bytes,6,opt,name=metadata_nonce,json=metadataNonce"`
-	xxx_hidden_Version           int64                  `protobuf:"varint,7,opt,name=version"`
-	xxx_hidden_Revision          int64                  `protobuf:"varint,8,opt,name=revision"`
-	xxx_hidden_CreatedAt         *timestamppb.Timestamp `protobuf:"bytes,9,opt,name=created_at,json=createdAt"`
-	xxx_hidden_UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=updated_at,json=updatedAt"`
-	xxx_hidden_DeletedAt         *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=deleted_at,json=deletedAt"`
+	xxx_hidden_EncryptionVersion uint32                 `protobuf:"varint,3,opt,name=encryption_version,json=encryptionVersion"`
+	xxx_hidden_EncryptedPayload  []byte                 `protobuf:"bytes,4,opt,name=encrypted_payload,json=encryptedPayload"`
+	xxx_hidden_EncryptedMetadata []byte                 `protobuf:"bytes,5,opt,name=encrypted_metadata,json=encryptedMetadata"`
+	xxx_hidden_PayloadNonce      []byte                 `protobuf:"bytes,6,opt,name=payload_nonce,json=payloadNonce"`
+	xxx_hidden_MetadataNonce     []byte                 `protobuf:"bytes,7,opt,name=metadata_nonce,json=metadataNonce"`
+	xxx_hidden_Version           int64                  `protobuf:"varint,8,opt,name=version"`
+	xxx_hidden_Revision          int64                  `protobuf:"varint,9,opt,name=revision"`
+	xxx_hidden_CreatedAt         *timestamppb.Timestamp `protobuf:"bytes,10,opt,name=created_at,json=createdAt"`
+	xxx_hidden_UpdatedAt         *timestamppb.Timestamp `protobuf:"bytes,11,opt,name=updated_at,json=updatedAt"`
+	xxx_hidden_DeletedAt         *timestamppb.Timestamp `protobuf:"bytes,12,opt,name=deleted_at,json=deletedAt"`
 	XXX_raceDetectHookData       protoimpl.RaceDetectHookData
 	XXX_presence                 [1]uint32
 	unknownFields                protoimpl.UnknownFields
@@ -136,6 +137,13 @@ func (x *Record) GetType() RecordType {
 		}
 	}
 	return RecordType_RECORD_TYPE_UNSPECIFIED
+}
+
+func (x *Record) GetEncryptionVersion() uint32 {
+	if x != nil {
+		return x.xxx_hidden_EncryptionVersion
+	}
+	return 0
 }
 
 func (x *Record) GetEncryptedPayload() []byte {
@@ -203,12 +211,17 @@ func (x *Record) GetDeletedAt() *timestamppb.Timestamp {
 
 func (x *Record) SetId(v string) {
 	x.xxx_hidden_Id = &v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 12)
 }
 
 func (x *Record) SetType(v RecordType) {
 	x.xxx_hidden_Type = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 12)
+}
+
+func (x *Record) SetEncryptionVersion(v uint32) {
+	x.xxx_hidden_EncryptionVersion = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 12)
 }
 
 func (x *Record) SetEncryptedPayload(v []byte) {
@@ -216,7 +229,7 @@ func (x *Record) SetEncryptedPayload(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_EncryptedPayload = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 12)
 }
 
 func (x *Record) SetEncryptedMetadata(v []byte) {
@@ -224,7 +237,7 @@ func (x *Record) SetEncryptedMetadata(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_EncryptedMetadata = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 12)
 }
 
 func (x *Record) SetPayloadNonce(v []byte) {
@@ -232,7 +245,7 @@ func (x *Record) SetPayloadNonce(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_PayloadNonce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 12)
 }
 
 func (x *Record) SetMetadataNonce(v []byte) {
@@ -240,17 +253,17 @@ func (x *Record) SetMetadataNonce(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_MetadataNonce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 6, 12)
 }
 
 func (x *Record) SetVersion(v int64) {
 	x.xxx_hidden_Version = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 6, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 7, 12)
 }
 
 func (x *Record) SetRevision(v int64) {
 	x.xxx_hidden_Revision = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 7, 11)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 8, 12)
 }
 
 func (x *Record) SetCreatedAt(v *timestamppb.Timestamp) {
@@ -279,46 +292,53 @@ func (x *Record) HasType() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *Record) HasEncryptedPayload() bool {
+func (x *Record) HasEncryptionVersion() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
 }
 
-func (x *Record) HasEncryptedMetadata() bool {
+func (x *Record) HasEncryptedPayload() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
 }
 
-func (x *Record) HasPayloadNonce() bool {
+func (x *Record) HasEncryptedMetadata() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
 }
 
-func (x *Record) HasMetadataNonce() bool {
+func (x *Record) HasPayloadNonce() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
 }
 
-func (x *Record) HasVersion() bool {
+func (x *Record) HasMetadataNonce() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 6)
 }
 
-func (x *Record) HasRevision() bool {
+func (x *Record) HasVersion() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 7)
+}
+
+func (x *Record) HasRevision() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 8)
 }
 
 func (x *Record) HasCreatedAt() bool {
@@ -352,33 +372,38 @@ func (x *Record) ClearType() {
 	x.xxx_hidden_Type = RecordType_RECORD_TYPE_UNSPECIFIED
 }
 
-func (x *Record) ClearEncryptedPayload() {
+func (x *Record) ClearEncryptionVersion() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	x.xxx_hidden_EncryptionVersion = 0
+}
+
+func (x *Record) ClearEncryptedPayload() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
 	x.xxx_hidden_EncryptedPayload = nil
 }
 
 func (x *Record) ClearEncryptedMetadata() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
 	x.xxx_hidden_EncryptedMetadata = nil
 }
 
 func (x *Record) ClearPayloadNonce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
 	x.xxx_hidden_PayloadNonce = nil
 }
 
 func (x *Record) ClearMetadataNonce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 6)
 	x.xxx_hidden_MetadataNonce = nil
 }
 
 func (x *Record) ClearVersion() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 6)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 7)
 	x.xxx_hidden_Version = 0
 }
 
 func (x *Record) ClearRevision() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 7)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 8)
 	x.xxx_hidden_Revision = 0
 }
 
@@ -399,6 +424,7 @@ type Record_builder struct {
 
 	Id                *string
 	Type              *RecordType
+	EncryptionVersion *uint32
 	EncryptedPayload  []byte
 	EncryptedMetadata []byte
 	PayloadNonce      []byte
@@ -415,35 +441,39 @@ func (b0 Record_builder) Build() *Record {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Id != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 12)
 		x.xxx_hidden_Id = b.Id
 	}
 	if b.Type != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 12)
 		x.xxx_hidden_Type = *b.Type
 	}
+	if b.EncryptionVersion != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 12)
+		x.xxx_hidden_EncryptionVersion = *b.EncryptionVersion
+	}
 	if b.EncryptedPayload != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 12)
 		x.xxx_hidden_EncryptedPayload = b.EncryptedPayload
 	}
 	if b.EncryptedMetadata != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 12)
 		x.xxx_hidden_EncryptedMetadata = b.EncryptedMetadata
 	}
 	if b.PayloadNonce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 12)
 		x.xxx_hidden_PayloadNonce = b.PayloadNonce
 	}
 	if b.MetadataNonce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 6, 12)
 		x.xxx_hidden_MetadataNonce = b.MetadataNonce
 	}
 	if b.Version != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 6, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 7, 12)
 		x.xxx_hidden_Version = *b.Version
 	}
 	if b.Revision != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 7, 11)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 8, 12)
 		x.xxx_hidden_Revision = *b.Revision
 	}
 	x.xxx_hidden_CreatedAt = b.CreatedAt
@@ -456,10 +486,11 @@ func (b0 Record_builder) Build() *Record {
 type EncryptedRecordData struct {
 	state                        protoimpl.MessageState `protogen:"opaque.v1"`
 	xxx_hidden_Type              RecordType             `protobuf:"varint,1,opt,name=type,enum=gophkeeper.v1.RecordType"`
-	xxx_hidden_EncryptedPayload  []byte                 `protobuf:"bytes,2,opt,name=encrypted_payload,json=encryptedPayload"`
-	xxx_hidden_EncryptedMetadata []byte                 `protobuf:"bytes,3,opt,name=encrypted_metadata,json=encryptedMetadata"`
-	xxx_hidden_PayloadNonce      []byte                 `protobuf:"bytes,4,opt,name=payload_nonce,json=payloadNonce"`
-	xxx_hidden_MetadataNonce     []byte                 `protobuf:"bytes,5,opt,name=metadata_nonce,json=metadataNonce"`
+	xxx_hidden_EncryptionVersion uint32                 `protobuf:"varint,2,opt,name=encryption_version,json=encryptionVersion"`
+	xxx_hidden_EncryptedPayload  []byte                 `protobuf:"bytes,3,opt,name=encrypted_payload,json=encryptedPayload"`
+	xxx_hidden_EncryptedMetadata []byte                 `protobuf:"bytes,4,opt,name=encrypted_metadata,json=encryptedMetadata"`
+	xxx_hidden_PayloadNonce      []byte                 `protobuf:"bytes,5,opt,name=payload_nonce,json=payloadNonce"`
+	xxx_hidden_MetadataNonce     []byte                 `protobuf:"bytes,6,opt,name=metadata_nonce,json=metadataNonce"`
 	XXX_raceDetectHookData       protoimpl.RaceDetectHookData
 	XXX_presence                 [1]uint32
 	unknownFields                protoimpl.UnknownFields
@@ -500,6 +531,13 @@ func (x *EncryptedRecordData) GetType() RecordType {
 	return RecordType_RECORD_TYPE_UNSPECIFIED
 }
 
+func (x *EncryptedRecordData) GetEncryptionVersion() uint32 {
+	if x != nil {
+		return x.xxx_hidden_EncryptionVersion
+	}
+	return 0
+}
+
 func (x *EncryptedRecordData) GetEncryptedPayload() []byte {
 	if x != nil {
 		return x.xxx_hidden_EncryptedPayload
@@ -530,7 +568,12 @@ func (x *EncryptedRecordData) GetMetadataNonce() []byte {
 
 func (x *EncryptedRecordData) SetType(v RecordType) {
 	x.xxx_hidden_Type = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 0, 6)
+}
+
+func (x *EncryptedRecordData) SetEncryptionVersion(v uint32) {
+	x.xxx_hidden_EncryptionVersion = v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 6)
 }
 
 func (x *EncryptedRecordData) SetEncryptedPayload(v []byte) {
@@ -538,7 +581,7 @@ func (x *EncryptedRecordData) SetEncryptedPayload(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_EncryptedPayload = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 6)
 }
 
 func (x *EncryptedRecordData) SetEncryptedMetadata(v []byte) {
@@ -546,7 +589,7 @@ func (x *EncryptedRecordData) SetEncryptedMetadata(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_EncryptedMetadata = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 2, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 6)
 }
 
 func (x *EncryptedRecordData) SetPayloadNonce(v []byte) {
@@ -554,7 +597,7 @@ func (x *EncryptedRecordData) SetPayloadNonce(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_PayloadNonce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 3, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 6)
 }
 
 func (x *EncryptedRecordData) SetMetadataNonce(v []byte) {
@@ -562,7 +605,7 @@ func (x *EncryptedRecordData) SetMetadataNonce(v []byte) {
 		v = []byte{}
 	}
 	x.xxx_hidden_MetadataNonce = v
-	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 4, 5)
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 5, 6)
 }
 
 func (x *EncryptedRecordData) HasType() bool {
@@ -572,32 +615,39 @@ func (x *EncryptedRecordData) HasType() bool {
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 0)
 }
 
-func (x *EncryptedRecordData) HasEncryptedPayload() bool {
+func (x *EncryptedRecordData) HasEncryptionVersion() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
-func (x *EncryptedRecordData) HasEncryptedMetadata() bool {
+func (x *EncryptedRecordData) HasEncryptedPayload() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 2)
 }
 
-func (x *EncryptedRecordData) HasPayloadNonce() bool {
+func (x *EncryptedRecordData) HasEncryptedMetadata() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 3)
 }
 
-func (x *EncryptedRecordData) HasMetadataNonce() bool {
+func (x *EncryptedRecordData) HasPayloadNonce() bool {
 	if x == nil {
 		return false
 	}
 	return protoimpl.X.Present(&(x.XXX_presence[0]), 4)
+}
+
+func (x *EncryptedRecordData) HasMetadataNonce() bool {
+	if x == nil {
+		return false
+	}
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 5)
 }
 
 func (x *EncryptedRecordData) ClearType() {
@@ -605,23 +655,28 @@ func (x *EncryptedRecordData) ClearType() {
 	x.xxx_hidden_Type = RecordType_RECORD_TYPE_UNSPECIFIED
 }
 
-func (x *EncryptedRecordData) ClearEncryptedPayload() {
+func (x *EncryptedRecordData) ClearEncryptionVersion() {
 	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_EncryptionVersion = 0
+}
+
+func (x *EncryptedRecordData) ClearEncryptedPayload() {
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
 	x.xxx_hidden_EncryptedPayload = nil
 }
 
 func (x *EncryptedRecordData) ClearEncryptedMetadata() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 2)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
 	x.xxx_hidden_EncryptedMetadata = nil
 }
 
 func (x *EncryptedRecordData) ClearPayloadNonce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 3)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
 	x.xxx_hidden_PayloadNonce = nil
 }
 
 func (x *EncryptedRecordData) ClearMetadataNonce() {
-	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 4)
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 5)
 	x.xxx_hidden_MetadataNonce = nil
 }
 
@@ -629,6 +684,7 @@ type EncryptedRecordData_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
 	Type              *RecordType
+	EncryptionVersion *uint32
 	EncryptedPayload  []byte
 	EncryptedMetadata []byte
 	PayloadNonce      []byte
@@ -640,23 +696,27 @@ func (b0 EncryptedRecordData_builder) Build() *EncryptedRecordData {
 	b, x := &b0, m0
 	_, _ = b, x
 	if b.Type != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 0, 6)
 		x.xxx_hidden_Type = *b.Type
 	}
+	if b.EncryptionVersion != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 6)
+		x.xxx_hidden_EncryptionVersion = *b.EncryptionVersion
+	}
 	if b.EncryptedPayload != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 6)
 		x.xxx_hidden_EncryptedPayload = b.EncryptedPayload
 	}
 	if b.EncryptedMetadata != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 2, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 6)
 		x.xxx_hidden_EncryptedMetadata = b.EncryptedMetadata
 	}
 	if b.PayloadNonce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 3, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 6)
 		x.xxx_hidden_PayloadNonce = b.PayloadNonce
 	}
 	if b.MetadataNonce != nil {
-		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 4, 5)
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 5, 6)
 		x.xxx_hidden_MetadataNonce = b.MetadataNonce
 	}
 	return m0
@@ -1562,29 +1622,31 @@ var File_gophkeeper_v1_vault_proto protoreflect.FileDescriptor
 
 const file_gophkeeper_v1_vault_proto_rawDesc = "" +
 	"\n" +
-	"\x19gophkeeper/v1/vault.proto\x12\rgophkeeper.v1\x1a!google/protobuf/go_features.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\xd6\x03\n" +
+	"\x19gophkeeper/v1/vault.proto\x12\rgophkeeper.v1\x1a!google/protobuf/go_features.proto\x1a\x1fgoogle/protobuf/timestamp.proto\"\x85\x04\n" +
 	"\x06Record\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12-\n" +
-	"\x04type\x18\x02 \x01(\x0e2\x19.gophkeeper.v1.RecordTypeR\x04type\x12+\n" +
+	"\x04type\x18\x02 \x01(\x0e2\x19.gophkeeper.v1.RecordTypeR\x04type\x12-\n" +
+	"\x12encryption_version\x18\x03 \x01(\rR\x11encryptionVersion\x12+\n" +
+	"\x11encrypted_payload\x18\x04 \x01(\fR\x10encryptedPayload\x12-\n" +
+	"\x12encrypted_metadata\x18\x05 \x01(\fR\x11encryptedMetadata\x12#\n" +
+	"\rpayload_nonce\x18\x06 \x01(\fR\fpayloadNonce\x12%\n" +
+	"\x0emetadata_nonce\x18\a \x01(\fR\rmetadataNonce\x12\x18\n" +
+	"\aversion\x18\b \x01(\x03R\aversion\x12\x1a\n" +
+	"\brevision\x18\t \x01(\x03R\brevision\x129\n" +
+	"\n" +
+	"created_at\x18\n" +
+	" \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
+	"\n" +
+	"updated_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x129\n" +
+	"\n" +
+	"deleted_at\x18\f \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\x9b\x02\n" +
+	"\x13EncryptedRecordData\x12-\n" +
+	"\x04type\x18\x01 \x01(\x0e2\x19.gophkeeper.v1.RecordTypeR\x04type\x12-\n" +
+	"\x12encryption_version\x18\x02 \x01(\rR\x11encryptionVersion\x12+\n" +
 	"\x11encrypted_payload\x18\x03 \x01(\fR\x10encryptedPayload\x12-\n" +
 	"\x12encrypted_metadata\x18\x04 \x01(\fR\x11encryptedMetadata\x12#\n" +
 	"\rpayload_nonce\x18\x05 \x01(\fR\fpayloadNonce\x12%\n" +
-	"\x0emetadata_nonce\x18\x06 \x01(\fR\rmetadataNonce\x12\x18\n" +
-	"\aversion\x18\a \x01(\x03R\aversion\x12\x1a\n" +
-	"\brevision\x18\b \x01(\x03R\brevision\x129\n" +
-	"\n" +
-	"created_at\x18\t \x01(\v2\x1a.google.protobuf.TimestampR\tcreatedAt\x129\n" +
-	"\n" +
-	"updated_at\x18\n" +
-	" \x01(\v2\x1a.google.protobuf.TimestampR\tupdatedAt\x129\n" +
-	"\n" +
-	"deleted_at\x18\v \x01(\v2\x1a.google.protobuf.TimestampR\tdeletedAt\"\xec\x01\n" +
-	"\x13EncryptedRecordData\x12-\n" +
-	"\x04type\x18\x01 \x01(\x0e2\x19.gophkeeper.v1.RecordTypeR\x04type\x12+\n" +
-	"\x11encrypted_payload\x18\x02 \x01(\fR\x10encryptedPayload\x12-\n" +
-	"\x12encrypted_metadata\x18\x03 \x01(\fR\x11encryptedMetadata\x12#\n" +
-	"\rpayload_nonce\x18\x04 \x01(\fR\fpayloadNonce\x12%\n" +
-	"\x0emetadata_nonce\x18\x05 \x01(\fR\rmetadataNonce\"]\n" +
+	"\x0emetadata_nonce\x18\x06 \x01(\fR\rmetadataNonce\"]\n" +
 	"\x13CreateRecordRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x126\n" +
 	"\x04data\x18\x02 \x01(\v2\".gophkeeper.v1.EncryptedRecordDataR\x04data\"\"\n" +

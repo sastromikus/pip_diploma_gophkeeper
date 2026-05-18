@@ -301,3 +301,22 @@ JSON payload schema v1
 At the current project stage, the account password is also used as the master password. It is sent to the server over TLS for authentication, while encryption and decryption are performed only by the client. This protects stored data from a database-only compromise, but it is not a zero-knowledge design against a malicious server. This limitation must remain explicit unless separate account and master passwords are introduced later.
 
 Client cryptographic code is located in `internal/client/crypto`. Callers should overwrite a DEK with `crypto.Wipe` after use where practical. Go does not guarantee complete removal of all compiler or runtime copies from memory.
+
+### Cryptographic binding and versions
+
+The encrypted data-key envelope is authenticated with the exact account login as
+associated data. The login is therefore part of the cryptographic identity and
+must remain immutable unless the data-key envelope is rewrapped deliberately.
+
+Each encrypted record stores an `encryption_version`. Record payload and metadata
+are authenticated against the encryption version, record UUID, record type, and
+record part. Ciphertext copied between records or between payload and metadata
+will not authenticate. Before decryption, ciphertext sizes are checked against
+configured limits.
+
+After changing protobuf contracts, regenerate generated code before tests:
+
+```cmd
+scripts\generate-proto.cmd
+scripts\check.cmd
+```

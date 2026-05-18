@@ -66,6 +66,7 @@ func scanRecord(row scanner) (model.Record, error) {
 		&id,
 		&userID,
 		&recordType,
+		&record.EncryptionVersion,
 		&record.EncryptedPayload,
 		&record.EncryptedMetadata,
 		&record.PayloadNonce,
