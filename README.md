@@ -357,3 +357,26 @@ go run .\cmd\server
 ```
 
 The server handles `Ctrl+C` and `SIGTERM`, stops accepting new RPC calls, waits for active calls up to `SHUTDOWN_TIMEOUT`, and then closes the PostgreSQL pool. Registration and login are public RPC methods; logout and all vault methods require `authorization: Bearer <token>` metadata.
+
+## Client authentication commands
+
+The CLI now supports registration, login, and logout. Passwords are requested
+interactively and are not accepted as command-line flags.
+
+For local development with a plaintext server:
+
+```cmd
+go run .\cmd\client register -server 127.0.0.1:3200 -insecure
+go run .\cmd\client login -server 127.0.0.1:3200 -insecure
+go run .\cmd\client logout -server 127.0.0.1:3200 -insecure
+```
+
+The client stores the bearer session and encrypted data-key envelope in the
+configured client config file. It never writes the plaintext data key to disk.
+The parent directory is created with restrictive permissions where supported,
+and the state file is written through a temporary file before replacement.
+
+Registration generates the data key locally, encrypts it with a key derived
+from the entered password, and sends only the encrypted envelope to the server.
+Login verifies that the returned envelope can be opened before saving the new
+session. Logout revokes the server session before removing local state.
