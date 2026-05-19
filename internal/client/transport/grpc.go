@@ -28,6 +28,7 @@ type Config struct {
 type Client struct {
 	connection *grpc.ClientConn
 	auth       gophkeeperv1.AuthServiceClient
+	vault      gophkeeperv1.VaultServiceClient
 }
 
 // Dial connects to a GophKeeper server.
@@ -46,7 +47,7 @@ func Dial(ctx context.Context, cfg Config) (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}
-	client := &Client{connection: connection, auth: gophkeeperv1.NewAuthServiceClient(connection)}
+	client := &Client{connection: connection, auth: gophkeeperv1.NewAuthServiceClient(connection), vault: gophkeeperv1.NewVaultServiceClient(connection)}
 	return client, nil
 }
 

@@ -380,3 +380,22 @@ Registration generates the data key locally, encrypts it with a key derived
 from the entered password, and sends only the encrypted envelope to the server.
 Login verifies that the returned envelope can be opened before saving the new
 session. Logout revokes the server session before removing local state.
+
+## Client vault application layer
+
+The client now has a transport and application layer for encrypted vault records.
+It can create, fetch, list, update, and delete records through the authenticated
+gRPC API while keeping plaintext data and the unlocked data key inside the
+client process only.
+
+For every operation that needs record contents, the application loads the saved
+session, unlocks the encrypted data key with the entered master password, and
+wipes the temporary key buffer after use. Record IDs are generated locally as
+UUIDv4 values before encryption so the ID can be included in AEAD associated
+data.
+
+List operations follow all server pages and reject repeated or empty continuation
+cursors when `has_more` is set. Update and delete first read the current record
+version and then use optimistic locking on the server. The next step will expose
+these application operations as interactive CLI commands for all four required
+record types.
