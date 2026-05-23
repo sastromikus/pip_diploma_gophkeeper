@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -162,6 +163,71 @@ func TestLocalDatabaseCloseIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestLocalRecordValidateRejectsMalformedCryptographicData(t *testing.T) {
+	record := testLocalRecord(t, SyncStatusSynced)
+	record.Data.PayloadNonce = []byte{1}
+	if err := record.Validate(); !errors.Is(err, clientcrypto.ErrInvalidKeyMaterial) {
+		t.Fatalf("Validate() nonce error = %v, want ErrInvalidKeyMaterial", err)
+	}
+
+	record = testLocalRecord(t, SyncStatusSynced)
+	record.Data.EncryptedPayload = make([]byte, clientcrypto.AEADTagSize-1)
+	if err := record.Validate(); !errors.Is(err, clientcrypto.ErrInvalidKeyMaterial) {
+		t.Fatalf("Validate() ciphertext error = %v, want ErrInvalidKeyMaterial", err)
+	}
+
+	record = testLocalRecord(t, SyncStatusSynced)
+	record.Data.EncryptionVersion++
+	if err := record.Validate(); !errors.Is(err, clientcrypto.ErrUnsupportedVersion) {
+		t.Fatalf("Validate() version error = %v, want ErrUnsupportedVersion", err)
+	}
+}
+
+func TestLocalRecordValidateRejectsInconsistentTombstoneStatus(t *testing.T) {
+	record := testLocalRecord(t, SyncStatusUpdated)
+	deletedAt := record.UpdatedAt.Add(time.Second)
+	record.DeletedAt = &deletedAt
+	record.Data.EncryptedPayload = nil
+	record.Data.EncryptedMetadata = nil
+	record.Data.PayloadNonce = nil
+	record.Data.MetadataNonce = nil
+	if err := record.Validate(); err == nil {
+		t.Fatal("Validate() error = nil for updated tombstone")
+	}
+}
+
+func TestMigrationRejectsNewerSchemaBeforeCreatingDataTables(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "future.db")
+	db, err := sql.Open("sqlite", "file:"+filepath.ToSlash(path))
+	if err != nil {
+		t.Fatalf("sql.Open() error = %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE schema_version (version INTEGER NOT NULL); INSERT INTO schema_version(version) VALUES (?)`, localSchemaVersion+1); err != nil {
+		_ = db.Close()
+		t.Fatalf("prepare future schema error = %v", err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+
+	if _, err := OpenLocalDatabase(context.Background(), path); err == nil {
+		t.Fatal("OpenLocalDatabase() error = nil for newer schema")
+	}
+
+	db, err = sql.Open("sqlite", "file:"+filepath.ToSlash(path))
+	if err != nil {
+		t.Fatalf("reopen database error = %v", err)
+	}
+	defer db.Close()
+	var count int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'records'`).Scan(&count); err != nil {
+		t.Fatalf("inspect records table error = %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("records table count = %d, want 0", count)
+	}
+}
+
 func openTestLocalDatabase(t *testing.T) *LocalDatabase {
 	t.Helper()
 	database, err := OpenLocalDatabase(context.Background(), filepath.Join(t.TempDir(), "gophkeeper.db"))
@@ -182,9 +248,12 @@ func testLocalRecord(t *testing.T, status SyncStatus) LocalRecord {
 	return LocalRecord{
 		ID: mustID(t, "11111111-1111-4111-8111-111111111111"),
 		Data: clientcrypto.EncryptedRecordData{
-			Type: model.RecordTypeCredentials, EncryptionVersion: 1,
-			EncryptedPayload: []byte{1, 2, 3}, EncryptedMetadata: []byte{4, 5, 6},
-			PayloadNonce: []byte{7, 8}, MetadataNonce: []byte{9, 10},
+			Type:              model.RecordTypeCredentials,
+			EncryptionVersion: clientcrypto.CurrentEncryptionVersion,
+			EncryptedPayload:  make([]byte, clientcrypto.AEADTagSize),
+			EncryptedMetadata: make([]byte, clientcrypto.AEADTagSize),
+			PayloadNonce:      make([]byte, clientcrypto.NonceSize),
+			MetadataNonce:     make([]byte, clientcrypto.NonceSize),
 		},
 		Version: 1, Revision: 2, CreatedAt: createdAt, UpdatedAt: createdAt.Add(time.Second), SyncStatus: status,
 	}

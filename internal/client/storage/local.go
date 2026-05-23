@@ -5,8 +5,10 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,8 +50,8 @@ func (record LocalRecord) Validate() error {
 	if err := record.Data.Type.Validate(); err != nil {
 		return err
 	}
-	if record.Data.EncryptionVersion == 0 {
-		return fmt.Errorf("%w: encryption version is required", model.ErrInvalidInput)
+	if record.Data.EncryptionVersion != clientcrypto.CurrentEncryptionVersion {
+		return fmt.Errorf("%w: unsupported encryption version %d", clientcrypto.ErrUnsupportedVersion, record.Data.EncryptionVersion)
 	}
 	if !record.SyncStatus.valid() {
 		return fmt.Errorf("%w: unsupported sync status %q", model.ErrInvalidInput, record.SyncStatus)
@@ -69,18 +71,24 @@ func (record LocalRecord) Validate() error {
 		return fmt.Errorf("%w: server-backed records require positive version and revision", model.ErrInvalidInput)
 	}
 
-	if record.SyncStatus == SyncStatusDeleted || record.DeletedAt != nil {
-		if record.DeletedAt == nil {
-			return fmt.Errorf("%w: deleted status requires deletion time", model.ErrInvalidInput)
+	if record.DeletedAt != nil {
+		if record.SyncStatus != SyncStatusDeleted && record.SyncStatus != SyncStatusSynced && record.SyncStatus != SyncStatusConflict {
+			return fmt.Errorf("%w: tombstone has incompatible sync status %q", model.ErrInvalidInput, record.SyncStatus)
 		}
 		if len(record.Data.EncryptedPayload) != 0 || len(record.Data.EncryptedMetadata) != 0 || len(record.Data.PayloadNonce) != 0 || len(record.Data.MetadataNonce) != 0 {
 			return fmt.Errorf("%w: local tombstone must not contain encrypted data", model.ErrInvalidInput)
 		}
 		return nil
 	}
+	if record.SyncStatus == SyncStatusDeleted {
+		return fmt.Errorf("%w: deleted status requires deletion time", model.ErrInvalidInput)
+	}
 
-	if len(record.Data.EncryptedPayload) == 0 || len(record.Data.EncryptedMetadata) == 0 || len(record.Data.PayloadNonce) == 0 || len(record.Data.MetadataNonce) == 0 {
-		return fmt.Errorf("%w: active local record requires encrypted data and nonces", model.ErrInvalidInput)
+	if len(record.Data.EncryptedPayload) < clientcrypto.AEADTagSize || len(record.Data.EncryptedMetadata) < clientcrypto.AEADTagSize {
+		return fmt.Errorf("%w: active local record ciphertext is malformed", clientcrypto.ErrInvalidKeyMaterial)
+	}
+	if len(record.Data.PayloadNonce) != clientcrypto.NonceSize || len(record.Data.MetadataNonce) != clientcrypto.NonceSize {
+		return fmt.Errorf("%w: active local record nonce is malformed", clientcrypto.ErrInvalidKeyMaterial)
 	}
 	return nil
 }
@@ -106,15 +114,28 @@ func OpenLocalDatabase(ctx context.Context, path string) (*LocalDatabase, error)
 	if ctx == nil {
 		return nil, errors.New("open local database: context is required")
 	}
-	if path == "" {
+	if strings.TrimSpace(path) == "" {
 		return nil, errors.New("open local database: path is required")
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("resolve local database path: %w", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(absPath), 0o700); err != nil {
 		return nil, fmt.Errorf("create local database directory: %w", err)
 	}
+	dsnPath := filepath.ToSlash(absPath)
+	if len(dsnPath) >= 2 && dsnPath[1] == ':' {
+		dsnPath = "/" + dsnPath
+	}
+	dsnURL := &url.URL{Scheme: "file", Path: dsnPath}
+	query := dsnURL.Query()
+	query.Add("_pragma", "busy_timeout(5000)")
+	query.Add("_pragma", "foreign_keys(1)")
+	query.Add("_pragma", "journal_mode(WAL)")
+	dsnURL.RawQuery = query.Encode()
 
-	dsn := "file:" + filepath.ToSlash(path) + "?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
-	db, err := sql.Open("sqlite", dsn)
+	db, err := sql.Open("sqlite", dsnURL.String())
 	if err != nil {
 		return nil, fmt.Errorf("open local SQLite database: %w", err)
 	}
@@ -129,6 +150,10 @@ func OpenLocalDatabase(ctx context.Context, path string) (*LocalDatabase, error)
 	if err := local.migrate(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
+	}
+	if err := os.Chmod(absPath, 0o600); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("restrict local database permissions: %w", err)
 	}
 	return local, nil
 }
@@ -342,10 +367,24 @@ func (database *LocalDatabase) migrate(ctx context.Context) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	statements := []string{
-		`CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`,
-		`INSERT INTO schema_version(version) SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM schema_version)`,
-		`CREATE TABLE IF NOT EXISTS records (
+	if _, err := tx.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_version (version INTEGER NOT NULL)`); err != nil {
+		return fmt.Errorf("create local schema version table: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `INSERT INTO schema_version(version) SELECT 0 WHERE NOT EXISTS (SELECT 1 FROM schema_version)`); err != nil {
+		return fmt.Errorf("initialize local schema version: %w", err)
+	}
+
+	var version int
+	if err := tx.QueryRowContext(ctx, "SELECT MAX(version) FROM schema_version").Scan(&version); err != nil {
+		return fmt.Errorf("read local schema version: %w", err)
+	}
+	if version > localSchemaVersion {
+		return fmt.Errorf("local database schema version %d is newer than supported version %d", version, localSchemaVersion)
+	}
+
+	if version < 1 {
+		statements := []string{
+			`CREATE TABLE records (
     id TEXT PRIMARY KEY,
     type TEXT NOT NULL CHECK (type IN ('credentials', 'text', 'binary', 'bank_card')),
     encryption_version INTEGER NOT NULL CHECK (encryption_version > 0),
@@ -367,32 +406,24 @@ func (database *LocalDatabase) migrate(ctx context.Context) error {
         (deleted_at IS NOT NULL AND encrypted_payload IS NULL AND encrypted_metadata IS NULL AND payload_nonce IS NULL AND metadata_nonce IS NULL)
     )
 )`,
-		`CREATE INDEX IF NOT EXISTS records_sync_status_idx ON records(sync_status, updated_at)`,
-		`CREATE INDEX IF NOT EXISTS records_revision_idx ON records(revision)`,
-		`CREATE TABLE IF NOT EXISTS sync_state (
+			`CREATE INDEX records_sync_status_idx ON records(sync_status, updated_at)`,
+			`CREATE INDEX records_revision_idx ON records(revision)`,
+			`CREATE TABLE sync_state (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     last_revision INTEGER NOT NULL CHECK (last_revision >= 0)
 )`,
-		`INSERT INTO sync_state(id, last_revision) VALUES (1, 0) ON CONFLICT(id) DO NOTHING`,
-	}
-	for _, statement := range statements {
-		if _, err := tx.ExecContext(ctx, statement); err != nil {
-			return fmt.Errorf("apply local schema version %d: %w", localSchemaVersion, err)
+			`INSERT INTO sync_state(id, last_revision) VALUES (1, 0)`,
+		}
+		for _, statement := range statements {
+			if _, err := tx.ExecContext(ctx, statement); err != nil {
+				return fmt.Errorf("apply local schema version 1: %w", err)
+			}
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE schema_version SET version = 1"); err != nil {
+			return fmt.Errorf("record local schema version 1: %w", err)
 		}
 	}
 
-	var version int
-	if err := tx.QueryRowContext(ctx, "SELECT version FROM schema_version LIMIT 1").Scan(&version); err != nil {
-		return fmt.Errorf("read local schema version: %w", err)
-	}
-	if version > localSchemaVersion {
-		return fmt.Errorf("local database schema version %d is newer than supported version %d", version, localSchemaVersion)
-	}
-	if version < localSchemaVersion {
-		if _, err := tx.ExecContext(ctx, "UPDATE schema_version SET version = ?", localSchemaVersion); err != nil {
-			return fmt.Errorf("record local schema version: %w", err)
-		}
-	}
 	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("commit local database migration: %w", err)
 	}
