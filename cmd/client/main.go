@@ -47,9 +47,19 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 	if len(args) == 0 {
 		return writeUsage(stdout)
 	}
-	command, configArgs := args[0], args[1:]
+	command := args[0]
+	var configArgs []string
+	var vaultCmd vaultCommand
 	switch command {
 	case "register", "login", "logout":
+		configArgs = args[1:]
+	case "add", "list", "get", "update", "delete":
+		var err error
+		vaultCmd, err = parseVaultCommand(args)
+		if err != nil {
+			return err
+		}
+		configArgs = vaultCmd.configArgs
 	case "help", "-h", "--help":
 		return writeUsage(stdout)
 	default:
@@ -76,19 +86,24 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("create session store: %w", err)
 	}
-	authService, err := clientapp.NewAuthService(remote, sessionStore, clientcrypto.NewService())
+	cryptoService := clientcrypto.NewService()
+	authService, err := clientapp.NewAuthService(remote, sessionStore, cryptoService)
 	if err != nil {
 		return fmt.Errorf("create client authentication service: %w", err)
 	}
+	vaultService, err := clientapp.NewVaultService(remote, sessionStore, cryptoService)
+	if err != nil {
+		return fmt.Errorf("create client vault service: %w", err)
+	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), commandTimeout)
-	defer cancel()
 	switch command {
 	case "register":
 		login, password, err := readCredentials(stdin, stdout, true)
 		if err != nil {
 			return err
 		}
+		ctx, cancel := commandContext()
+		defer cancel()
 		if err := authService.Register(ctx, login, password); err != nil {
 			return err
 		}
@@ -99,19 +114,29 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
+		ctx, cancel := commandContext()
+		defer cancel()
 		if err := authService.Login(ctx, login, password); err != nil {
 			return err
 		}
 		_, err = fmt.Fprintln(stdout, "Login completed. Session saved locally.")
 		return err
 	case "logout":
+		ctx, cancel := commandContext()
+		defer cancel()
 		if err := authService.Logout(ctx); err != nil {
 			return err
 		}
 		_, err = fmt.Fprintln(stdout, "Logout completed. Local session removed.")
 		return err
+	case "add", "list", "get", "update", "delete":
+		return executeVaultCommand(vaultCmd, vaultService, stdin, stdout)
 	}
 	return nil
+}
+
+func commandContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), commandTimeout)
 }
 
 func readCredentials(stdin io.Reader, stdout io.Writer, confirm bool) (string, string, error) {
@@ -164,7 +189,15 @@ func writeUsage(output io.Writer) error {
   gophkeeper-client register [connection flags]
   gophkeeper-client login [connection flags]
   gophkeeper-client logout [connection flags]
+  gophkeeper-client add <credentials|text|binary|card> [connection flags]
+  gophkeeper-client list [connection flags]
+  gophkeeper-client get <record-id> [output-path] [connection flags]
+  gophkeeper-client update <record-id> [connection flags]
+  gophkeeper-client delete <record-id> [connection flags]
   gophkeeper-client version
+
+For binary records, get writes the file only when output-path is provided.
+Existing files are never overwritten.
 
 Connection flags:
   -server <host:port>

@@ -399,3 +399,26 @@ cursors when `has_more` is set. Update and delete first read the current record
 version and then use optimistic locking on the server. The next step will expose
 these application operations as interactive CLI commands for all four required
 record types.
+
+## Vault CLI commands
+
+After registration or login, the client can work with encrypted records directly from the command line. Secrets are requested interactively and are not accepted as ordinary command-line flags.
+
+```cmd
+go run .\cmd\client add credentials -server 127.0.0.1:3200 -insecure
+go run .\cmd\client add text -server 127.0.0.1:3200 -insecure
+go run .\cmd\client add binary -server 127.0.0.1:3200 -insecure
+go run .\cmd\client add card -server 127.0.0.1:3200 -insecure
+go run .\cmd\client list -server 127.0.0.1:3200 -insecure
+go run .\cmd\client get <record-id> -server 127.0.0.1:3200 -insecure
+go run .\cmd\client update <record-id> -server 127.0.0.1:3200 -insecure
+go run .\cmd\client delete <record-id> -server 127.0.0.1:3200 -insecure
+```
+
+For a binary record, provide an explicit destination path after the record ID:
+
+```cmd
+go run .\cmd\client get <record-id> restored-file.bin -server 127.0.0.1:3200 -insecure
+```
+
+The client refuses to overwrite an existing file. `update` performs a complete replacement of the selected record while preserving its type. The current server version is fetched first and used for optimistic locking.
