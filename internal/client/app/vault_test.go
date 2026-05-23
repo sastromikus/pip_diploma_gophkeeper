@@ -120,3 +120,39 @@ func TestVaultServiceListAndDelete(t *testing.T) {
 		t.Fatal("Delete() did not call remote API")
 	}
 }
+
+func TestVaultServiceUpdate(t *testing.T) {
+	id, _ := model.ParseID("123e4567-e89b-42d3-a456-426614174000")
+	record := clienttransport.RemoteRecord{ID: id, Data: clientcrypto.EncryptedRecordData{Type: model.RecordTypeText}, Version: 4}
+	api := &vaultAPIFake{record: record}
+	service, _ := NewVaultService(api, &sessionStoreFake{state: testSessionState()}, vaultCryptoFake{})
+
+	_, err := service.Update(context.Background(), "password", id, model.RecordTypeText, clientmodel.Text{Title: "updated", Body: "body"}, clientmodel.Metadata{})
+	if err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+	if !api.updated {
+		t.Fatal("Update() did not call remote API")
+	}
+}
+
+func TestVaultServiceRejectsRecordTypeChange(t *testing.T) {
+	id, _ := model.ParseID("123e4567-e89b-42d3-a456-426614174000")
+	api := &vaultAPIFake{record: clienttransport.RemoteRecord{ID: id, Data: clientcrypto.EncryptedRecordData{Type: model.RecordTypeText}, Version: 1}}
+	service, _ := NewVaultService(api, &sessionStoreFake{state: testSessionState()}, vaultCryptoFake{})
+
+	_, err := service.Update(context.Background(), "password", id, model.RecordTypeCredentials, clientmodel.Credentials{Name: "mail", Login: "user", Password: "secret"}, clientmodel.Metadata{})
+	if err == nil {
+		t.Fatal("Update() accepted a record type change")
+	}
+}
+
+func TestVaultServiceRejectsZeroRecordID(t *testing.T) {
+	service, _ := NewVaultService(&vaultAPIFake{}, &sessionStoreFake{state: testSessionState()}, vaultCryptoFake{})
+	if _, err := service.Get(context.Background(), "password", ""); err == nil {
+		t.Fatal("Get() accepted an empty record ID")
+	}
+	if err := service.Delete(context.Background(), ""); err == nil {
+		t.Fatal("Delete() accepted an empty record ID")
+	}
+}

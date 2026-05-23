@@ -95,6 +95,9 @@ func (service *VaultService) Create(ctx context.Context, password string, record
 
 // Get downloads and decrypts one record.
 func (service *VaultService) Get(ctx context.Context, password string, id model.ID) (RecordView, error) {
+	if id.IsZero() {
+		return RecordView{}, fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
+	}
 	state, key, err := service.unlock(password)
 	if err != nil {
 		return RecordView{}, err
@@ -104,7 +107,10 @@ func (service *VaultService) Get(ctx context.Context, password string, id model.
 	if err != nil {
 		return RecordView{}, err
 	}
-	payload := payloadTarget(record.Data.Type)
+	payload, err := payloadTarget(record.Data.Type)
+	if err != nil {
+		return RecordView{}, err
+	}
 	metadata := clientmodel.Metadata{}
 	if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
 		return RecordView{}, fmt.Errorf("decrypt record: %w", err)
@@ -127,7 +133,10 @@ func (service *VaultService) List(ctx context.Context, password string) ([]Recor
 			return nil, err
 		}
 		for _, record := range page.Records {
-			payload := payloadTarget(record.Data.Type)
+			payload, err := payloadTarget(record.Data.Type)
+			if err != nil {
+				return nil, fmt.Errorf("prepare record %s: %w", record.ID, err)
+			}
 			metadata := clientmodel.Metadata{}
 			if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
 				return nil, fmt.Errorf("decrypt record %s: %w", record.ID, err)
@@ -147,6 +156,9 @@ func (service *VaultService) List(ctx context.Context, password string) ([]Recor
 
 // Update encrypts replacement data and writes it using the current server version.
 func (service *VaultService) Update(ctx context.Context, password string, id model.ID, recordType model.RecordType, payload any, metadata clientmodel.Metadata) (clienttransport.RemoteRecord, error) {
+	if id.IsZero() {
+		return clienttransport.RemoteRecord{}, fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
+	}
 	state, key, err := service.unlock(password)
 	if err != nil {
 		return clienttransport.RemoteRecord{}, err
@@ -155,6 +167,9 @@ func (service *VaultService) Update(ctx context.Context, password string, id mod
 	current, err := service.api.GetRecord(ctx, state.Token, id)
 	if err != nil {
 		return clienttransport.RemoteRecord{}, err
+	}
+	if current.Data.Type != recordType {
+		return clienttransport.RemoteRecord{}, fmt.Errorf("%w: changing record type is not supported", model.ErrInvalidInput)
 	}
 	encrypted, err := service.crypto.EncryptRecord(key, id, recordType, payload, metadata, service.limits)
 	if err != nil {
@@ -169,6 +184,9 @@ func (service *VaultService) Update(ctx context.Context, password string, id mod
 
 // Delete removes a record using its current server version.
 func (service *VaultService) Delete(ctx context.Context, id model.ID) error {
+	if id.IsZero() {
+		return fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
+	}
 	state, err := service.store.Load()
 	if err != nil {
 		return fmt.Errorf("load current session: %w", err)
@@ -214,18 +232,18 @@ func generateID() (model.ID, error) {
 	return id, nil
 }
 
-func payloadTarget(recordType model.RecordType) any {
+func payloadTarget(recordType model.RecordType) (any, error) {
 	switch recordType {
 	case model.RecordTypeCredentials:
-		return &clientmodel.Credentials{}
+		return &clientmodel.Credentials{}, nil
 	case model.RecordTypeText:
-		return &clientmodel.Text{}
+		return &clientmodel.Text{}, nil
 	case model.RecordTypeBinary:
-		return &clientmodel.Binary{}
+		return &clientmodel.Binary{}, nil
 	case model.RecordTypeBankCard:
-		return &clientmodel.BankCard{}
+		return &clientmodel.BankCard{}, nil
 	default:
-		return &struct{}{}
+		return nil, fmt.Errorf("%w: unsupported record type %q", model.ErrInvalidInput, recordType)
 	}
 }
 

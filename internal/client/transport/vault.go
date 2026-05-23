@@ -32,8 +32,15 @@ type RecordPage struct {
 
 // CreateRecord stores a client-encrypted record.
 func (client *Client) CreateRecord(ctx context.Context, token string, id model.ID, data clientcrypto.EncryptedRecordData) (RemoteRecord, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return RemoteRecord{}, err
+	}
+	if id.IsZero() {
+		return RemoteRecord{}, fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
+	}
 	request := gophkeeperv1.CreateRecordRequest_builder{Id: stringPointer(id.String()), Data: encryptedRecordMessage(data)}.Build()
-	response, err := client.vault.CreateRecord(authorize(ctx, token), request)
+	response, err := client.vault.CreateRecord(ctx, request)
 	if err != nil {
 		return RemoteRecord{}, fmt.Errorf("create record: %w", err)
 	}
@@ -42,8 +49,15 @@ func (client *Client) CreateRecord(ctx context.Context, token string, id model.I
 
 // GetRecord returns one encrypted record.
 func (client *Client) GetRecord(ctx context.Context, token string, id model.ID) (RemoteRecord, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return RemoteRecord{}, err
+	}
+	if id.IsZero() {
+		return RemoteRecord{}, fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
+	}
 	request := gophkeeperv1.GetRecordRequest_builder{Id: stringPointer(id.String())}.Build()
-	response, err := client.vault.GetRecord(authorize(ctx, token), request)
+	response, err := client.vault.GetRecord(ctx, request)
 	if err != nil {
 		return RemoteRecord{}, fmt.Errorf("get record: %w", err)
 	}
@@ -52,8 +66,12 @@ func (client *Client) GetRecord(ctx context.Context, token string, id model.ID) 
 
 // ListRecords returns a page of active encrypted records.
 func (client *Client) ListRecords(ctx context.Context, token, afterID string, limit uint32) (RecordPage, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return RecordPage{}, err
+	}
 	request := gophkeeperv1.ListRecordsRequest_builder{AfterId: stringPointer(afterID), Limit: &limit}.Build()
-	response, err := client.vault.ListRecords(authorize(ctx, token), request)
+	response, err := client.vault.ListRecords(ctx, request)
 	if err != nil {
 		return RecordPage{}, fmt.Errorf("list records: %w", err)
 	}
@@ -70,8 +88,15 @@ func (client *Client) ListRecords(ctx context.Context, token, afterID string, li
 
 // UpdateRecord replaces encrypted record data using optimistic locking.
 func (client *Client) UpdateRecord(ctx context.Context, token string, id model.ID, expectedVersion int64, data clientcrypto.EncryptedRecordData) (RemoteRecord, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return RemoteRecord{}, err
+	}
+	if id.IsZero() || expectedVersion < 1 {
+		return RemoteRecord{}, fmt.Errorf("%w: record ID and positive expected version are required", model.ErrInvalidInput)
+	}
 	request := gophkeeperv1.UpdateRecordRequest_builder{Id: stringPointer(id.String()), ExpectedVersion: &expectedVersion, Data: encryptedRecordMessage(data)}.Build()
-	response, err := client.vault.UpdateRecord(authorize(ctx, token), request)
+	response, err := client.vault.UpdateRecord(ctx, request)
 	if err != nil {
 		return RemoteRecord{}, fmt.Errorf("update record: %w", err)
 	}
@@ -80,16 +105,29 @@ func (client *Client) UpdateRecord(ctx context.Context, token string, id model.I
 
 // DeleteRecord creates a tombstone using optimistic locking.
 func (client *Client) DeleteRecord(ctx context.Context, token string, id model.ID, expectedVersion int64) (RemoteRecord, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return RemoteRecord{}, err
+	}
+	if id.IsZero() || expectedVersion < 1 {
+		return RemoteRecord{}, fmt.Errorf("%w: record ID and positive expected version are required", model.ErrInvalidInput)
+	}
 	request := gophkeeperv1.DeleteRecordRequest_builder{Id: stringPointer(id.String()), ExpectedVersion: &expectedVersion}.Build()
-	response, err := client.vault.DeleteRecord(authorize(ctx, token), request)
+	response, err := client.vault.DeleteRecord(ctx, request)
 	if err != nil {
 		return RemoteRecord{}, fmt.Errorf("delete record: %w", err)
 	}
 	return remoteRecord(response.GetRecord())
 }
 
-func authorize(ctx context.Context, token string) context.Context {
-	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
+func authorizedContext(ctx context.Context, token string) (context.Context, error) {
+	if ctx == nil {
+		return nil, errors.New("request context is required")
+	}
+	if token == "" {
+		return nil, errors.New("session token is required")
+	}
+	return metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token), nil
 }
 
 func encryptedRecordMessage(data clientcrypto.EncryptedRecordData) *gophkeeperv1.EncryptedRecordData {
@@ -115,6 +153,31 @@ func remoteRecord(message *gophkeeperv1.Record) (RemoteRecord, error) {
 	recordType, err := domainRecordType(message.GetType())
 	if err != nil {
 		return RemoteRecord{}, err
+	}
+	if message.GetVersion() < 1 || message.GetRevision() < 1 {
+		return RemoteRecord{}, errors.New("server returned invalid record version metadata")
+	}
+	if message.GetEncryptionVersion() == 0 {
+		return RemoteRecord{}, errors.New("server returned an unsupported encryption version")
+	}
+	if message.GetCreatedAt() == nil || message.GetUpdatedAt() == nil {
+		return RemoteRecord{}, errors.New("server returned incomplete record timestamps")
+	}
+	if err := message.GetCreatedAt().CheckValid(); err != nil {
+		return RemoteRecord{}, fmt.Errorf("invalid record creation time: %w", err)
+	}
+	if err := message.GetUpdatedAt().CheckValid(); err != nil {
+		return RemoteRecord{}, fmt.Errorf("invalid record update time: %w", err)
+	}
+	if message.GetDeletedAt() != nil {
+		if err := message.GetDeletedAt().CheckValid(); err != nil {
+			return RemoteRecord{}, fmt.Errorf("invalid record deletion time: %w", err)
+		}
+		if len(message.GetEncryptedPayload()) != 0 || len(message.GetEncryptedMetadata()) != 0 || len(message.GetPayloadNonce()) != 0 || len(message.GetMetadataNonce()) != 0 {
+			return RemoteRecord{}, errors.New("server returned a tombstone containing encrypted data")
+		}
+	} else if len(message.GetEncryptedPayload()) == 0 || len(message.GetEncryptedMetadata()) == 0 || len(message.GetPayloadNonce()) == 0 || len(message.GetMetadataNonce()) == 0 {
+		return RemoteRecord{}, errors.New("server returned incomplete encrypted record data")
 	}
 	record := RemoteRecord{
 		ID: id,
