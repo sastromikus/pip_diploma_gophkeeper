@@ -21,27 +21,26 @@
 coverage.*
 /coverage/
 
-# Local databases
+# Local databases and runtime state
 *.db
 *.db-*
 *.sqlite
 *.sqlite3
+*.log
 
 # Private keys and certificates
 *.key
 *.pem
 
+# Profiling artifacts
+profiles/*.pprof
+
 # Dependencies
 /vendor/
 
-# IDE and editor settings
+# IDE and operating system files
 /.idea/
 /.vscode/
-
-# Operating system files
 .DS_Store
 Thumbs.db
 Desktop.ini
-
-# Runtime logs
-*.log

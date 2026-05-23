@@ -422,3 +422,40 @@ go run .\cmd\client get <record-id> restored-file.bin -server 127.0.0.1:3200 -in
 ```
 
 The client refuses to overwrite an existing file. `update` performs a complete replacement of the selected record while preserving its type. The current server version is fetched first and used for optimistic locking.
+
+## Encrypted local SQLite storage
+
+The client now has a transactional local SQLite store at `CLIENT_STORAGE_PATH`
+(`-storage`). It uses the pure-Go `modernc.org/sqlite` driver, so ordinary client
+builds and cross-compilation do not require CGO.
+
+The local database stores only encrypted payloads, encrypted metadata, nonces,
+server version/revision metadata, tombstones, and synchronization state. It does
+not persist plaintext records or the unlocked data key.
+
+Each local record has one explicit synchronization status:
+
+```text
+synced
+created
+updated
+deleted
+conflict
+```
+
+The store supports:
+
+- atomic upsert of complete encrypted records;
+- lookup and ordered listing;
+- filtering of tombstones from normal lists;
+- listing pending changes and conflicts;
+- permanent removal of local-only state;
+- a monotonic last-applied server revision;
+- idempotent database close;
+- schema initialization inside a transaction.
+
+The database file and its parent directory are created in the configured client
+application directory. SQLite WAL mode, foreign-key enforcement, a busy timeout,
+and a single writer connection are configured explicitly. The next step will
+connect this store to the vault commands and implement bidirectional
+revision-based synchronization.
