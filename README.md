@@ -492,3 +492,41 @@ on the server for later resolution.
 The synchronization command does not ask for the master password because it
 moves only ciphertext, nonces, versions, and tombstones. Plaintext and the
 unwrapped data key are never written to the local database.
+
+## Continuous integration
+
+The repository includes `.github/workflows/ci.yml`. It runs on pushes to
+`master`/`main` and on pull requests. The workflow uses Go 1.26.3 and pinned
+tool versions. It performs:
+
+- reproducible protobuf generation with protoc 35.0,
+  `protoc-gen-go` 1.36.11, and `protoc-gen-go-grpc` 1.6.2;
+- formatting and `go mod tidy` consistency checks;
+- `go vet`;
+- unit and PostgreSQL integration tests;
+- coverage collection excluding generated protobuf code;
+- the race detector on Linux;
+- client and server builds for Linux amd64, Windows amd64, and macOS arm64;
+- upload of coverage and binary artifacts.
+
+The workflow currently reports coverage but does not fail below 70% while the
+remaining project layers are still being completed. The final project check
+must enable the 70% threshold.
+
+On Windows, calculate handwritten-code coverage with:
+
+```powershell
+.\scripts\coverage.ps1 -Html
+```
+
+To enforce the final requirement locally:
+
+```powershell
+.\scripts\coverage.ps1 -Enforce -Minimum 70
+```
+
+On Linux or macOS:
+
+```sh
+./scripts/coverage.sh
+```
