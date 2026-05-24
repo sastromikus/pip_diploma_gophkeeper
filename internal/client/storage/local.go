@@ -496,3 +496,109 @@ func (database *LocalDatabase) usable(ctx context.Context) error {
 	}
 	return nil
 }
+
+// ApplyRemotePage atomically applies one ordered server page and advances the
+// synchronization cursor. Pending local changes are preserved and marked as
+// conflicts instead of being overwritten.
+func (database *LocalDatabase) ApplyRemotePage(ctx context.Context, records []LocalRecord, nextRevision int64) (int, error) {
+	if err := database.usable(ctx); err != nil {
+		return 0, err
+	}
+	if nextRevision < 0 {
+		return 0, fmt.Errorf("%w: sync revision cannot be negative", model.ErrInvalidInput)
+	}
+	for i := range records {
+		if records[i].SyncStatus != SyncStatusSynced {
+			return 0, fmt.Errorf("%w: remote record %s must be marked synced", model.ErrInvalidInput, records[i].ID)
+		}
+		if err := records[i].Validate(); err != nil {
+			return 0, fmt.Errorf("validate remote record %s: %w", records[i].ID, err)
+		}
+	}
+
+	tx, err := database.db.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, fmt.Errorf("begin remote page transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	var currentRevision int64
+	if err := tx.QueryRowContext(ctx, "SELECT last_revision FROM sync_state WHERE id = 1").Scan(&currentRevision); err != nil {
+		return 0, fmt.Errorf("read sync cursor for remote page: %w", err)
+	}
+	if nextRevision < currentRevision {
+		return 0, errors.New("sync revision cannot move backwards")
+	}
+
+	conflicts := 0
+	for _, record := range records {
+		var statusText string
+		var localRevision int64
+		err := tx.QueryRowContext(ctx, "SELECT sync_status, revision FROM records WHERE id = ?", record.ID.String()).Scan(&statusText, &localRevision)
+		switch {
+		case errors.Is(err, sql.ErrNoRows):
+			if err := saveLocalRecordTx(ctx, tx, record); err != nil {
+				return 0, err
+			}
+		case err != nil:
+			return 0, fmt.Errorf("inspect local record %s before sync: %w", record.ID, err)
+		default:
+			status := SyncStatus(statusText)
+			if status != SyncStatusSynced && record.Revision > localRevision {
+				if _, err := tx.ExecContext(ctx, "UPDATE records SET sync_status = ? WHERE id = ?", string(SyncStatusConflict), record.ID.String()); err != nil {
+					return 0, fmt.Errorf("mark local record %s as conflicted: %w", record.ID, err)
+				}
+				conflicts++
+				continue
+			}
+			if record.Revision >= localRevision {
+				if err := saveLocalRecordTx(ctx, tx, record); err != nil {
+					return 0, err
+				}
+			}
+		}
+	}
+	if _, err := tx.ExecContext(ctx, "UPDATE sync_state SET last_revision = ? WHERE id = 1", nextRevision); err != nil {
+		return 0, fmt.Errorf("advance sync cursor: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return 0, fmt.Errorf("commit remote page: %w", err)
+	}
+	return conflicts, nil
+}
+
+func saveLocalRecordTx(ctx context.Context, tx *sql.Tx, record LocalRecord) error {
+	var deletedAt any
+	if record.DeletedAt != nil {
+		deletedAt = record.DeletedAt.UTC().UnixNano()
+	}
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO records (
+    id, type, encryption_version, encrypted_payload, encrypted_metadata,
+    payload_nonce, metadata_nonce, version, revision, created_at, updated_at,
+    deleted_at, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    type = excluded.type,
+    encryption_version = excluded.encryption_version,
+    encrypted_payload = excluded.encrypted_payload,
+    encrypted_metadata = excluded.encrypted_metadata,
+    payload_nonce = excluded.payload_nonce,
+    metadata_nonce = excluded.metadata_nonce,
+    version = excluded.version,
+    revision = excluded.revision,
+    created_at = excluded.created_at,
+    updated_at = excluded.updated_at,
+    deleted_at = excluded.deleted_at,
+    sync_status = excluded.sync_status`,
+		record.ID.String(), string(record.Data.Type), record.Data.EncryptionVersion,
+		nullBytes(record.Data.EncryptedPayload), nullBytes(record.Data.EncryptedMetadata),
+		nullBytes(record.Data.PayloadNonce), nullBytes(record.Data.MetadataNonce),
+		record.Version, record.Revision, record.CreatedAt.UTC().UnixNano(),
+		record.UpdatedAt.UTC().UnixNano(), deletedAt, string(record.SyncStatus),
+	)
+	if err != nil {
+		return fmt.Errorf("save synchronized local record %s: %w", record.ID, err)
+	}
+	return nil
+}

@@ -282,3 +282,53 @@ func assertLocalRecord(t *testing.T, got, want LocalRecord) {
 		t.Fatalf("record encrypted data = %#v, want %#v", got.Data, want.Data)
 	}
 }
+
+func TestApplyRemotePageAdvancesCursorAndPreservesPendingConflict(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	ctx := context.Background()
+
+	pending := testLocalRecord(t, SyncStatusUpdated)
+	if err := database.Save(ctx, pending); err != nil {
+		t.Fatalf("Save() pending error = %v", err)
+	}
+	remote := pending
+	remote.Version = 2
+	remote.Revision = 3
+	remote.UpdatedAt = remote.UpdatedAt.Add(time.Second)
+	remote.SyncStatus = SyncStatusSynced
+
+	conflicts, err := database.ApplyRemotePage(ctx, []LocalRecord{remote}, 3)
+	if err != nil {
+		t.Fatalf("ApplyRemotePage() error = %v", err)
+	}
+	if conflicts != 1 {
+		t.Fatalf("conflicts = %d, want 1", conflicts)
+	}
+	stored, err := database.Get(ctx, pending.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if stored.SyncStatus != SyncStatusConflict || stored.Version != pending.Version {
+		t.Fatalf("stored conflict = %#v", stored)
+	}
+	revision, err := database.LastRevision(ctx)
+	if err != nil || revision != 3 {
+		t.Fatalf("LastRevision() = %d, %v", revision, err)
+	}
+}
+
+func TestApplyRemotePageStoresNewRecord(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	record := testLocalRecord(t, SyncStatusSynced)
+	conflicts, err := database.ApplyRemotePage(context.Background(), []LocalRecord{record}, record.Revision)
+	if err != nil {
+		t.Fatalf("ApplyRemotePage() error = %v", err)
+	}
+	if conflicts != 0 {
+		t.Fatalf("conflicts = %d, want 0", conflicts)
+	}
+	stored, err := database.Get(context.Background(), record.ID)
+	if err != nil || stored.Revision != record.Revision {
+		t.Fatalf("Get() = %#v, %v", stored, err)
+	}
+}

@@ -43,6 +43,11 @@ func (server vaultTestServer) DeleteRecord(context.Context, *gophkeeperv1.Delete
 	return gophkeeperv1.DeleteRecordResponse_builder{Record: server.record}.Build(), nil
 }
 
+func (server vaultTestServer) SyncRecords(context.Context, *gophkeeperv1.SyncRecordsRequest) (*gophkeeperv1.SyncRecordsResponse, error) {
+	next, more := server.record.GetRevision(), false
+	return gophkeeperv1.SyncRecordsResponse_builder{Records: []*gophkeeperv1.Record{server.record}, NextRevision: &next, HasMore: &more}.Build(), nil
+}
+
 func TestClientVaultMethods(t *testing.T) {
 	id := "123e4567-e89b-42d3-a456-426614174000"
 	typ := gophkeeperv1.RecordType_RECORD_TYPE_TEXT
@@ -84,6 +89,10 @@ func TestClientVaultMethods(t *testing.T) {
 	}
 	if _, err := client.DeleteRecord(context.Background(), "token", parsedID, 1); err != nil {
 		t.Fatal(err)
+	}
+	pageSync, err := client.SyncRecords(context.Background(), "token", 0, 10)
+	if err != nil || len(pageSync.Records) != 1 || pageSync.NextRevision != revision {
+		t.Fatalf("SyncRecords() = %#v, %v", pageSync, err)
 	}
 }
 

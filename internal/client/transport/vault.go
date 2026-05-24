@@ -9,7 +9,9 @@ import (
 	gophkeeperv1 "github.com/sastromikus/gophkeeper/api/gophkeeper/v1"
 	clientcrypto "github.com/sastromikus/gophkeeper/internal/client/crypto"
 	"github.com/sastromikus/gophkeeper/internal/model"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 // RemoteRecord contains encrypted record data and server-managed metadata.
@@ -42,7 +44,7 @@ func (client *Client) CreateRecord(ctx context.Context, token string, id model.I
 	request := gophkeeperv1.CreateRecordRequest_builder{Id: stringPointer(id.String()), Data: encryptedRecordMessage(data)}.Build()
 	response, err := client.vault.CreateRecord(ctx, request)
 	if err != nil {
-		return RemoteRecord{}, fmt.Errorf("create record: %w", err)
+		return RemoteRecord{}, fmt.Errorf("create record: %w", mapRPCError(err))
 	}
 	return remoteRecord(response.GetRecord())
 }
@@ -59,7 +61,7 @@ func (client *Client) GetRecord(ctx context.Context, token string, id model.ID) 
 	request := gophkeeperv1.GetRecordRequest_builder{Id: stringPointer(id.String())}.Build()
 	response, err := client.vault.GetRecord(ctx, request)
 	if err != nil {
-		return RemoteRecord{}, fmt.Errorf("get record: %w", err)
+		return RemoteRecord{}, fmt.Errorf("get record: %w", mapRPCError(err))
 	}
 	return remoteRecord(response.GetRecord())
 }
@@ -73,7 +75,7 @@ func (client *Client) ListRecords(ctx context.Context, token, afterID string, li
 	request := gophkeeperv1.ListRecordsRequest_builder{AfterId: stringPointer(afterID), Limit: &limit}.Build()
 	response, err := client.vault.ListRecords(ctx, request)
 	if err != nil {
-		return RecordPage{}, fmt.Errorf("list records: %w", err)
+		return RecordPage{}, fmt.Errorf("list records: %w", mapRPCError(err))
 	}
 	page := RecordPage{NextPageToken: response.GetNextPageToken(), HasMore: response.GetHasMore(), Records: make([]RemoteRecord, 0, len(response.GetRecords()))}
 	for _, message := range response.GetRecords() {
@@ -98,7 +100,7 @@ func (client *Client) UpdateRecord(ctx context.Context, token string, id model.I
 	request := gophkeeperv1.UpdateRecordRequest_builder{Id: stringPointer(id.String()), ExpectedVersion: &expectedVersion, Data: encryptedRecordMessage(data)}.Build()
 	response, err := client.vault.UpdateRecord(ctx, request)
 	if err != nil {
-		return RemoteRecord{}, fmt.Errorf("update record: %w", err)
+		return RemoteRecord{}, fmt.Errorf("update record: %w", mapRPCError(err))
 	}
 	return remoteRecord(response.GetRecord())
 }
@@ -115,7 +117,7 @@ func (client *Client) DeleteRecord(ctx context.Context, token string, id model.I
 	request := gophkeeperv1.DeleteRecordRequest_builder{Id: stringPointer(id.String()), ExpectedVersion: &expectedVersion}.Build()
 	response, err := client.vault.DeleteRecord(ctx, request)
 	if err != nil {
-		return RemoteRecord{}, fmt.Errorf("delete record: %w", err)
+		return RemoteRecord{}, fmt.Errorf("delete record: %w", mapRPCError(err))
 	}
 	return remoteRecord(response.GetRecord())
 }
@@ -234,3 +236,65 @@ func domainRecordType(value gophkeeperv1.RecordType) (model.RecordType, error) {
 }
 
 func stringPointer(value string) *string { return &value }
+
+// SyncPage contains one ordered page of server-side record changes.
+type SyncPage struct {
+	Records      []RemoteRecord
+	NextRevision int64
+	HasMore      bool
+}
+
+// SyncRecords returns ordered record changes after an exclusive server revision.
+func (client *Client) SyncRecords(ctx context.Context, token string, afterRevision int64, limit uint32) (SyncPage, error) {
+	ctx, err := authorizedContext(ctx, token)
+	if err != nil {
+		return SyncPage{}, err
+	}
+	if afterRevision < 0 {
+		return SyncPage{}, fmt.Errorf("%w: sync revision cannot be negative", model.ErrInvalidInput)
+	}
+	request := gophkeeperv1.SyncRecordsRequest_builder{AfterRevision: &afterRevision, Limit: &limit}.Build()
+	response, err := client.vault.SyncRecords(ctx, request)
+	if err != nil {
+		return SyncPage{}, fmt.Errorf("sync records: %w", mapRPCError(err))
+	}
+	if response.GetNextRevision() < afterRevision {
+		return SyncPage{}, errors.New("server returned a sync cursor behind the requested revision")
+	}
+	page := SyncPage{NextRevision: response.GetNextRevision(), HasMore: response.GetHasMore(), Records: make([]RemoteRecord, 0, len(response.GetRecords()))}
+	for _, message := range response.GetRecords() {
+		record, err := remoteRecord(message)
+		if err != nil {
+			return SyncPage{}, fmt.Errorf("decode synchronized record: %w", err)
+		}
+		if record.Revision <= afterRevision {
+			return SyncPage{}, errors.New("server returned a record outside the requested revision range")
+		}
+		page.Records = append(page.Records, record)
+	}
+	if page.HasMore && (len(page.Records) == 0 || page.NextRevision == afterRevision) {
+		return SyncPage{}, errors.New("server returned a non-progressing sync page")
+	}
+	return page, nil
+}
+
+func mapRPCError(err error) error {
+	switch status.Code(err) {
+	case codes.InvalidArgument:
+		return fmt.Errorf("%w: %v", model.ErrInvalidInput, err)
+	case codes.NotFound:
+		return fmt.Errorf("%w: %v", model.ErrNotFound, err)
+	case codes.AlreadyExists:
+		return fmt.Errorf("%w: %v", model.ErrAlreadyExists, err)
+	case codes.Aborted:
+		return fmt.Errorf("%w: %v", model.ErrVersionConflict, err)
+	case codes.Unauthenticated:
+		return fmt.Errorf("%w: %v", model.ErrUnauthenticated, err)
+	case codes.PermissionDenied:
+		return fmt.Errorf("%w: %v", model.ErrForbidden, err)
+	case codes.ResourceExhausted:
+		return fmt.Errorf("%w: %v", model.ErrPayloadTooLarge, err)
+	default:
+		return err
+	}
+}

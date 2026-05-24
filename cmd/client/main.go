@@ -51,7 +51,7 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 	var configArgs []string
 	var vaultCmd vaultCommand
 	switch command {
-	case "register", "login", "logout":
+	case "register", "login", "logout", "sync":
 		configArgs = args[1:]
 	case "add", "list", "get", "update", "delete":
 		var err error
@@ -131,6 +131,28 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 		return err
 	case "add", "list", "get", "update", "delete":
 		return executeVaultCommand(vaultCmd, vaultService, stdin, stdout)
+	case "sync":
+		ctx, cancel := commandContext()
+		defer cancel()
+		local, err := clientstorage.OpenLocalDatabase(ctx, cfg.StoragePath)
+		if err != nil {
+			return fmt.Errorf("open local encrypted storage: %w", err)
+		}
+		defer func() {
+			if closeErr := local.Close(); closeErr != nil {
+				slog.Warn("close local encrypted storage", "error", closeErr)
+			}
+		}()
+		syncService, err := clientapp.NewSyncService(remote, sessionStore, local)
+		if err != nil {
+			return fmt.Errorf("create synchronization service: %w", err)
+		}
+		report, err := syncService.Sync(ctx)
+		if err != nil {
+			return err
+		}
+		_, err = fmt.Fprintf(stdout, "Synchronization completed: uploaded=%d downloaded=%d conflicts=%d revision=%d\n", report.Uploaded, report.Downloaded, report.Conflicts, report.Revision)
+		return err
 	}
 	return nil
 }
@@ -189,6 +211,7 @@ func writeUsage(output io.Writer) error {
   gophkeeper-client register [connection flags]
   gophkeeper-client login [connection flags]
   gophkeeper-client logout [connection flags]
+  gophkeeper-client sync [connection flags]
   gophkeeper-client add <credentials|text|binary|card> [connection flags]
   gophkeeper-client list [connection flags]
   gophkeeper-client get <record-id> [output-path] [connection flags]

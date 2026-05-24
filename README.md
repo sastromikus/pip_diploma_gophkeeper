@@ -459,3 +459,23 @@ application directory. SQLite WAL mode, foreign-key enforcement, a busy timeout,
 and a single writer connection are configured explicitly. The next step will
 connect this store to the vault commands and implement bidirectional
 revision-based synchronization.
+
+## Client synchronization
+
+The client keeps an encrypted SQLite cache and synchronizes it with the server
+using the monotonic record revision cursor:
+
+```cmd
+go run .\cmd\client sync -server 127.0.0.1:3200 -insecure
+```
+
+Synchronization uploads pending encrypted local changes first and then downloads
+all server changes after the last fully applied revision. A downloaded page and
+its cursor are committed to SQLite in one transaction. If a server change
+collides with a pending local change, the local ciphertext is preserved and the
+record is marked `conflict`; the authoritative server version remains available
+on the server for later resolution.
+
+The synchronization command does not ask for the master password because it
+moves only ciphertext, nonces, versions, and tombstones. Plaintext and the
+unwrapped data key are never written to the local database.
