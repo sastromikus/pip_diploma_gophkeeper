@@ -115,6 +115,8 @@ Required settings:
 | `SHUTDOWN_TIMEOUT` | `-shutdown-timeout` | `10s` |
 | `MAX_ENCRYPTED_PAYLOAD_SIZE` | `-max-encrypted-payload-size` | `15728640` |
 | `MAX_ENCRYPTED_METADATA_SIZE` | `-max-encrypted-metadata-size` | `66560` |
+| `AUTH_RATE_LIMIT` | `-auth-rate-limit` | `10` |
+| `AUTH_RATE_WINDOW` | `-auth-rate-window` | `1m` |
 
 TLS is required by default. Plaintext transport must be enabled explicitly for local development:
 
@@ -423,6 +425,19 @@ go run .\cmd\client get <record-id> restored-file.bin -server 127.0.0.1:3200 -in
 
 The client refuses to overwrite an existing file. `update` performs a complete replacement of the selected record while preserving its type. The current server version is fetched first and used for optimistic locking.
 
+
+### gRPC security middleware
+
+The server uses a chained unary interceptor pipeline:
+
+- panic recovery converts handler panics to gRPC `Internal` responses;
+- every call receives a cryptographically random request ID;
+- registration and login are rate-limited per remote IP address;
+- protected methods authenticate the bearer session;
+- one structured completion entry is logged with request ID, method, status, and duration.
+
+Request payloads, authorization metadata, passwords, tokens, ciphertext, and decrypted data are never written to request logs. The in-memory authentication limiter has bounded state and returns `ResourceExhausted` after the configured number of attempts inside the configured window. TLS server configuration requires TLS 1.2 or newer.
+
 ## Encrypted local SQLite storage
 
 The client now has a transactional local SQLite store at `CLIENT_STORAGE_PATH`
@@ -456,9 +471,7 @@ The store supports:
 
 The database file and its parent directory are created in the configured client
 application directory. SQLite WAL mode, foreign-key enforcement, a busy timeout,
-and a single writer connection are configured explicitly. The next step will
-connect this store to the vault commands and implement bidirectional
-revision-based synchronization.
+and a single writer connection are configured explicitly. The store is used by the bidirectional revision-based synchronization command described below.
 
 ## Client synchronization
 

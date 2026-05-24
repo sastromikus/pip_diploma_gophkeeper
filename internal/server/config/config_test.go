@@ -15,6 +15,8 @@ func TestParseDefaultsAndFlags(t *testing.T) {
 		"-shutdown-timeout", "15s",
 		"-max-encrypted-payload-size", "2048",
 		"-max-encrypted-metadata-size", "512",
+		"-auth-rate-limit", "12",
+		"-auth-rate-window", "2m",
 	}, nil)
 	if err != nil {
 		t.Fatalf("Parse() error = %v", err)
@@ -38,6 +40,12 @@ func TestParseDefaultsAndFlags(t *testing.T) {
 	if cfg.MaxEncryptedMetadataSize != 512 {
 		t.Fatalf("MaxEncryptedMetadataSize = %d, want %d", cfg.MaxEncryptedMetadataSize, 512)
 	}
+	if cfg.AuthRateLimit != 12 {
+		t.Fatalf("AuthRateLimit = %d, want %d", cfg.AuthRateLimit, 12)
+	}
+	if cfg.AuthRateWindow != 2*time.Minute {
+		t.Fatalf("AuthRateWindow = %v, want %v", cfg.AuthRateWindow, 2*time.Minute)
+	}
 }
 
 func TestParseEnvironmentOverridesFlags(t *testing.T) {
@@ -49,6 +57,8 @@ func TestParseEnvironmentOverridesFlags(t *testing.T) {
 		"MAX_ENCRYPTED_PAYLOAD_SIZE":  "4096",
 		"MAX_ENCRYPTED_METADATA_SIZE": "1024",
 		"SHUTDOWN_TIMEOUT":            "20s",
+		"AUTH_RATE_LIMIT":             "7",
+		"AUTH_RATE_WINDOW":            "30s",
 	}
 
 	cfg, err := Parse([]string{
@@ -71,6 +81,9 @@ func TestParseEnvironmentOverridesFlags(t *testing.T) {
 	}
 	if cfg.SessionTTL != 3*time.Hour {
 		t.Fatalf("SessionTTL = %v, want %v", cfg.SessionTTL, 3*time.Hour)
+	}
+	if cfg.AuthRateLimit != 7 || cfg.AuthRateWindow != 30*time.Second {
+		t.Fatalf("unexpected auth rate configuration: limit=%d window=%v", cfg.AuthRateLimit, cfg.AuthRateWindow)
 	}
 }
 
@@ -114,6 +127,8 @@ func TestValidateTLSModes(t *testing.T) {
 		ShutdownTimeout:          defaultShutdownTimeout,
 		MaxEncryptedPayloadSize:  defaultMaxEncryptedPayloadSize,
 		MaxEncryptedMetadataSize: defaultMaxEncryptedMetadataSize,
+		AuthRateLimit:            defaultAuthRateLimit,
+		AuthRateWindow:           defaultAuthRateWindow,
 	}
 
 	tests := []struct {
@@ -159,5 +174,16 @@ func mapLookup(values map[string]string) LookupEnv {
 	return func(name string) (string, bool) {
 		value, ok := values[name]
 		return value, ok
+	}
+}
+
+func TestParseRejectsInvalidAuthRateLimit(t *testing.T) {
+	_, err := Parse(nil, mapLookup(map[string]string{
+		"DATABASE_DSN":    "postgres://localhost/gophkeeper",
+		"SERVER_INSECURE": "true",
+		"AUTH_RATE_LIMIT": "many",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "AUTH_RATE_LIMIT") {
+		t.Fatalf("Parse() error = %v, want AUTH_RATE_LIMIT parse error", err)
 	}
 }

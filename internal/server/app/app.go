@@ -3,6 +3,7 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -41,7 +42,7 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	}
 	defer database.Close()
 
-	grpcServer, err := buildGRPCServer(cfg, database)
+	grpcServer, err := buildGRPCServer(cfg, database, logger)
 	if err != nil {
 		return err
 	}
@@ -96,7 +97,10 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	return nil
 }
 
-func buildGRPCServer(cfg config.Config, database *postgres.Database) (*grpc.Server, error) {
+func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slog.Logger) (*grpc.Server, error) {
+	if logger == nil {
+		logger = slog.Default()
+	}
 	if database == nil || database.Pool() == nil {
 		return nil, errors.New("database pool is required")
 	}
@@ -126,20 +130,35 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database) (*grpc.Serv
 		return nil, fmt.Errorf("create vault service: %w", err)
 	}
 
+	rateLimiter, err := grpcserver.NewAuthRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow, 10000)
+	if err != nil {
+		return nil, fmt.Errorf("create authentication rate limiter: %w", err)
+	}
+
 	maxMessageSize, err := checkedGRPCMessageSize(cfg)
 	if err != nil {
 		return nil, err
 	}
 	options := []grpc.ServerOption{
-		grpc.UnaryInterceptor(grpcserver.UnaryAuthInterceptor(sessionService)),
+		grpc.ChainUnaryInterceptor(
+			grpcserver.UnaryRecoveryInterceptor(logger),
+			grpcserver.UnaryRequestIDInterceptor(),
+			grpcserver.UnaryAuthRateLimitInterceptor(rateLimiter),
+			grpcserver.UnaryAuthInterceptor(sessionService),
+			grpcserver.UnaryRequestLoggingInterceptor(logger),
+		),
 		grpc.MaxRecvMsgSize(maxMessageSize),
 		grpc.MaxSendMsgSize(maxMessageSize),
 	}
 	if !cfg.Insecure {
-		transportCredentials, err := credentials.NewServerTLSFromFile(cfg.TLSCertFile, cfg.TLSKeyFile)
+		certificate, err := tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKeyFile)
 		if err != nil {
 			return nil, fmt.Errorf("load server TLS certificate: %w", err)
 		}
+		transportCredentials := credentials.NewTLS(&tls.Config{
+			MinVersion:   tls.VersionTLS12,
+			Certificates: []tls.Certificate{certificate},
+		})
 		options = append(options, grpc.Creds(transportCredentials))
 	}
 

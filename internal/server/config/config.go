@@ -15,6 +15,8 @@ const (
 	defaultAddress                  = "127.0.0.1:3200"
 	defaultSessionTTL               = 24 * time.Hour
 	defaultShutdownTimeout          = 10 * time.Second
+	defaultAuthRateLimit            = 10
+	defaultAuthRateWindow           = time.Minute
 	defaultMaxEncryptedPayloadSize  = int64(15 << 20) // Allows JSON/Base64 and AEAD overhead for a 10 MiB binary.
 	defaultMaxEncryptedMetadataSize = int64((64 << 10) + 1024)
 )
@@ -30,6 +32,8 @@ type Config struct {
 	ShutdownTimeout          time.Duration
 	MaxEncryptedPayloadSize  int64
 	MaxEncryptedMetadataSize int64
+	AuthRateLimit            int
+	AuthRateWindow           time.Duration
 }
 
 // LookupEnv returns an environment variable value by name.
@@ -44,6 +48,8 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 		ShutdownTimeout:          defaultShutdownTimeout,
 		MaxEncryptedPayloadSize:  defaultMaxEncryptedPayloadSize,
 		MaxEncryptedMetadataSize: defaultMaxEncryptedMetadataSize,
+		AuthRateLimit:            defaultAuthRateLimit,
+		AuthRateWindow:           defaultAuthRateWindow,
 	}
 
 	flags := flag.NewFlagSet("gophkeeper-server", flag.ContinueOnError)
@@ -56,6 +62,8 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 	flags.DurationVar(&cfg.ShutdownTimeout, "shutdown-timeout", cfg.ShutdownTimeout, "graceful shutdown timeout")
 	flags.Int64Var(&cfg.MaxEncryptedPayloadSize, "max-encrypted-payload-size", cfg.MaxEncryptedPayloadSize, "maximum encrypted record payload size in bytes")
 	flags.Int64Var(&cfg.MaxEncryptedMetadataSize, "max-encrypted-metadata-size", cfg.MaxEncryptedMetadataSize, "maximum encrypted record metadata size in bytes")
+	flags.IntVar(&cfg.AuthRateLimit, "auth-rate-limit", cfg.AuthRateLimit, "maximum registration/login attempts per remote address and window")
+	flags.DurationVar(&cfg.AuthRateWindow, "auth-rate-window", cfg.AuthRateWindow, "registration/login rate-limit window")
 
 	if err := flags.Parse(args); err != nil {
 		return Config{}, fmt.Errorf("parse server flags: %w", err)
@@ -88,6 +96,14 @@ func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 			return Config{}, err
 		}
 		cfg.MaxEncryptedMetadataSize, err = envInt64(lookupEnv, "MAX_ENCRYPTED_METADATA_SIZE", cfg.MaxEncryptedMetadataSize)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.AuthRateLimit, err = envInt(lookupEnv, "AUTH_RATE_LIMIT", cfg.AuthRateLimit)
+		if err != nil {
+			return Config{}, err
+		}
+		cfg.AuthRateWindow, err = envDuration(lookupEnv, "AUTH_RATE_WINDOW", cfg.AuthRateWindow)
 		if err != nil {
 			return Config{}, err
 		}
@@ -135,6 +151,12 @@ func (c Config) Validate() error {
 	if c.MaxEncryptedMetadataSize <= 0 {
 		return errors.New("maximum encrypted metadata size must be positive")
 	}
+	if c.AuthRateLimit <= 0 {
+		return errors.New("authentication rate limit must be positive")
+	}
+	if c.AuthRateWindow <= 0 {
+		return errors.New("authentication rate window must be positive")
+	}
 	return nil
 }
 
@@ -175,6 +197,18 @@ func envInt64(lookupEnv LookupEnv, name string, fallback int64) (int64, error) {
 		return fallback, nil
 	}
 	parsed, err := strconv.ParseInt(value, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("parse %s: %w", name, err)
+	}
+	return parsed, nil
+}
+
+func envInt(lookupEnv LookupEnv, name string, fallback int) (int, error) {
+	value, ok := lookupEnv(name)
+	if !ok {
+		return fallback, nil
+	}
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
 		return 0, fmt.Errorf("parse %s: %w", name, err)
 	}
