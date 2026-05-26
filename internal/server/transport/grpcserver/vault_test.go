@@ -2,6 +2,7 @@ package grpcserver
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -103,5 +104,67 @@ func TestVaultServerValidation(t *testing.T) {
 	badID := "invalid"
 	if _, err := server.GetRecord(vaultPrincipalContext(), gophkeeperv1.GetRecordRequest_builder{Id: &badID}.Build()); status.Code(err) != codes.InvalidArgument {
 		t.Fatalf("GetRecord() invalid ID code = %v", status.Code(err))
+	}
+}
+
+func TestVaultServerMapsDomainErrors(t *testing.T) {
+	tests := []struct {
+		err  error
+		code codes.Code
+	}{
+		{model.ErrInvalidInput, codes.InvalidArgument},
+		{model.ErrNotFound, codes.NotFound},
+		{model.ErrAlreadyExists, codes.AlreadyExists},
+		{model.ErrVersionConflict, codes.Aborted},
+		{model.ErrPayloadTooLarge, codes.ResourceExhausted},
+		{errors.New("database failed"), codes.Internal},
+	}
+	id := vaultRecord().ID.String()
+	for _, tt := range tests {
+		server := NewVaultServer(vaultApplicationStub{err: tt.err})
+		_, err := server.GetRecord(vaultPrincipalContext(), gophkeeperv1.GetRecordRequest_builder{Id: &id}.Build())
+		if status.Code(err) != tt.code {
+			t.Fatalf("GetRecord() code = %v, want %v", status.Code(err), tt.code)
+		}
+	}
+}
+
+func TestVaultServerRejectsMissingServiceAndMalformedRequests(t *testing.T) {
+	server := NewVaultServer(nil)
+	ctx := vaultPrincipalContext()
+	id := vaultRecord().ID.String()
+	if _, err := server.GetRecord(ctx, gophkeeperv1.GetRecordRequest_builder{Id: &id}.Build()); status.Code(err) != codes.Internal {
+		t.Fatalf("GetRecord() code = %v, want Internal", status.Code(err))
+	}
+
+	server = NewVaultServer(vaultApplicationStub{})
+	if _, err := server.ListRecords(ctx, nil); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("ListRecords(nil) code = %v", status.Code(err))
+	}
+	if _, err := server.UpdateRecord(ctx, nil); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("UpdateRecord(nil) code = %v", status.Code(err))
+	}
+	if _, err := server.DeleteRecord(ctx, nil); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("DeleteRecord(nil) code = %v", status.Code(err))
+	}
+	if _, err := server.SyncRecords(ctx, nil); status.Code(err) != codes.InvalidArgument {
+		t.Fatalf("SyncRecords(nil) code = %v", status.Code(err))
+	}
+}
+
+func TestRecordTypeConversions(t *testing.T) {
+	tests := []model.RecordType{
+		model.RecordTypeCredentials,
+		model.RecordTypeText,
+		model.RecordTypeBinary,
+		model.RecordTypeBankCard,
+	}
+	for _, typ := range tests {
+		if got := recordTypeFromProto(recordTypeToProto(typ)); got != typ {
+			t.Fatalf("round trip type = %q, want %q", got, typ)
+		}
+	}
+	if got := recordTypeFromProto(gophkeeperv1.RecordType_RECORD_TYPE_UNSPECIFIED); got != "" {
+		t.Fatalf("unspecified type = %q", got)
 	}
 }

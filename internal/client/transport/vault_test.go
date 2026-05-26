@@ -1,7 +1,9 @@
 package transport
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -56,8 +58,11 @@ func TestClientVaultMethods(t *testing.T) {
 	now := timestamppb.New(time.Now().UTC())
 	record := gophkeeperv1.Record_builder{
 		Id: &id, Type: &typ, EncryptionVersion: &encVersion,
-		EncryptedPayload: []byte{1}, EncryptedMetadata: []byte{2}, PayloadNonce: []byte{3}, MetadataNonce: []byte{4},
-		Version: &version, Revision: &revision, CreatedAt: now, UpdatedAt: now,
+		EncryptedPayload:  bytes.Repeat([]byte{1}, model.RecordAuthenticationTagSize),
+		EncryptedMetadata: bytes.Repeat([]byte{2}, model.RecordAuthenticationTagSize),
+		PayloadNonce:      bytes.Repeat([]byte{3}, model.RecordNonceSize),
+		MetadataNonce:     bytes.Repeat([]byte{4}, model.RecordNonceSize),
+		Version:           &version, Revision: &revision, CreatedAt: now, UpdatedAt: now,
 	}.Build()
 
 	listener := bufconn.Listen(1 << 20)
@@ -72,7 +77,14 @@ func TestClientVaultMethods(t *testing.T) {
 	t.Cleanup(func() { _ = connection.Close() })
 	client := &Client{connection: connection, vault: gophkeeperv1.NewVaultServiceClient(connection)}
 	parsedID, _ := model.ParseID(id)
-	data := clientcrypto.EncryptedRecordData{Type: model.RecordTypeText, EncryptionVersion: 1, EncryptedPayload: []byte{1}, EncryptedMetadata: []byte{2}, PayloadNonce: []byte{3}, MetadataNonce: []byte{4}}
+	data := clientcrypto.EncryptedRecordData{
+		Type:              model.RecordTypeText,
+		EncryptionVersion: model.CurrentRecordEncryptionVersion,
+		EncryptedPayload:  bytes.Repeat([]byte{1}, model.RecordAuthenticationTagSize),
+		EncryptedMetadata: bytes.Repeat([]byte{2}, model.RecordAuthenticationTagSize),
+		PayloadNonce:      bytes.Repeat([]byte{3}, model.RecordNonceSize),
+		MetadataNonce:     bytes.Repeat([]byte{4}, model.RecordNonceSize),
+	}
 
 	if _, err := client.CreateRecord(context.Background(), "token", parsedID, data); err != nil {
 		t.Fatal(err)
@@ -104,5 +116,78 @@ func TestClientVaultRejectsMissingAuthorizationAndInvalidMetadata(t *testing.T) 
 	}
 	if _, err := client.UpdateRecord(context.Background(), "token", id, 0, clientcrypto.EncryptedRecordData{}); err == nil {
 		t.Fatal("UpdateRecord() accepted an invalid version")
+	}
+}
+
+func TestRemoteRecordRejectsMalformedServerData(t *testing.T) {
+	id := "123e4567-e89b-42d3-a456-426614174000"
+	typ := gophkeeperv1.RecordType_RECORD_TYPE_TEXT
+	encVersion := uint32(model.CurrentRecordEncryptionVersion)
+	version, revision := int64(1), int64(1)
+	now := timestamppb.New(time.Now().UTC())
+	valid := func() *gophkeeperv1.Record {
+		return gophkeeperv1.Record_builder{
+			Id: &id, Type: &typ, EncryptionVersion: &encVersion,
+			EncryptedPayload:  make([]byte, model.RecordAuthenticationTagSize),
+			EncryptedMetadata: make([]byte, model.RecordAuthenticationTagSize),
+			PayloadNonce:      make([]byte, model.RecordNonceSize),
+			MetadataNonce:     make([]byte, model.RecordNonceSize),
+			Version:           &version, Revision: &revision, CreatedAt: now, UpdatedAt: now,
+		}.Build()
+	}
+
+	tests := []struct {
+		name    string
+		message func() *gophkeeperv1.Record
+	}{
+		{name: "nil", message: func() *gophkeeperv1.Record { return nil }},
+		{name: "unsupported encryption version", message: func() *gophkeeperv1.Record {
+			m := valid()
+			m.SetEncryptionVersion(model.CurrentRecordEncryptionVersion + 1)
+			return m
+		}},
+		{name: "short payload", message: func() *gophkeeperv1.Record {
+			m := valid()
+			m.SetEncryptedPayload(make([]byte, model.RecordAuthenticationTagSize-1))
+			return m
+		}},
+		{name: "bad nonce", message: func() *gophkeeperv1.Record {
+			m := valid()
+			m.SetPayloadNonce(make([]byte, model.RecordNonceSize-1))
+			return m
+		}},
+		{name: "invalid version metadata", message: func() *gophkeeperv1.Record {
+			m := valid()
+			m.SetVersion(0)
+			return m
+		}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := remoteRecord(tt.message()); err == nil {
+				t.Fatal("remoteRecord() accepted malformed data")
+			}
+		})
+	}
+}
+
+func TestMapRPCError(t *testing.T) {
+	tests := []struct {
+		code codes.Code
+		want error
+	}{
+		{codes.InvalidArgument, model.ErrInvalidInput},
+		{codes.NotFound, model.ErrNotFound},
+		{codes.AlreadyExists, model.ErrAlreadyExists},
+		{codes.Aborted, model.ErrVersionConflict},
+		{codes.Unauthenticated, model.ErrUnauthenticated},
+		{codes.PermissionDenied, model.ErrForbidden},
+		{codes.ResourceExhausted, model.ErrPayloadTooLarge},
+	}
+	for _, tt := range tests {
+		err := mapRPCError(status.Error(tt.code, "test"))
+		if !errors.Is(err, tt.want) {
+			t.Fatalf("mapRPCError(%v) = %v, want %v", tt.code, err, tt.want)
+		}
 	}
 }

@@ -78,6 +78,10 @@ func TestRepositoriesIntegration(t *testing.T) {
 	if storedUser.ID != userID {
 		t.Fatalf("stored user ID = %q, want %q", storedUser.ID, userID)
 	}
+	storedUserByID, err := users.GetByID(ctx, userID)
+	if err != nil || storedUserByID.Login != login {
+		t.Fatalf("UserRepository.GetByID() = %+v, %v", storedUserByID, err)
+	}
 
 	session := model.Session{
 		ID:        sessionID,
@@ -116,6 +120,14 @@ func TestRepositoriesIntegration(t *testing.T) {
 	}
 	if createdRecord.Version != 1 || createdRecord.Revision < 1 {
 		t.Fatalf("created record version/revision = %d/%d", createdRecord.Version, createdRecord.Revision)
+	}
+	gotRecord, err := records.Get(ctx, userID, recordID)
+	if err != nil || gotRecord.ID != recordID {
+		t.Fatalf("RecordRepository.Get() = %+v, %v", gotRecord, err)
+	}
+	listed, err := records.List(ctx, userID, "", 10)
+	if err != nil || len(listed) != 1 || listed[0].ID != recordID {
+		t.Fatalf("RecordRepository.List() = %+v, %v", listed, err)
 	}
 
 	record.EncryptedPayload = []byte("updated-ciphertext")

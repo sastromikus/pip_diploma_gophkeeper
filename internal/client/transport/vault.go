@@ -159,8 +159,8 @@ func remoteRecord(message *gophkeeperv1.Record) (RemoteRecord, error) {
 	if message.GetVersion() < 1 || message.GetRevision() < 1 {
 		return RemoteRecord{}, errors.New("server returned invalid record version metadata")
 	}
-	if message.GetEncryptionVersion() == 0 {
-		return RemoteRecord{}, errors.New("server returned an unsupported encryption version")
+	if message.GetEncryptionVersion() != model.CurrentRecordEncryptionVersion {
+		return RemoteRecord{}, fmt.Errorf("server returned unsupported encryption version %d", message.GetEncryptionVersion())
 	}
 	if message.GetCreatedAt() == nil || message.GetUpdatedAt() == nil {
 		return RemoteRecord{}, errors.New("server returned incomplete record timestamps")
@@ -178,8 +178,15 @@ func remoteRecord(message *gophkeeperv1.Record) (RemoteRecord, error) {
 		if len(message.GetEncryptedPayload()) != 0 || len(message.GetEncryptedMetadata()) != 0 || len(message.GetPayloadNonce()) != 0 || len(message.GetMetadataNonce()) != 0 {
 			return RemoteRecord{}, errors.New("server returned a tombstone containing encrypted data")
 		}
-	} else if len(message.GetEncryptedPayload()) == 0 || len(message.GetEncryptedMetadata()) == 0 || len(message.GetPayloadNonce()) == 0 || len(message.GetMetadataNonce()) == 0 {
-		return RemoteRecord{}, errors.New("server returned incomplete encrypted record data")
+	} else {
+		if len(message.GetEncryptedPayload()) < model.RecordAuthenticationTagSize ||
+			len(message.GetEncryptedMetadata()) < model.RecordAuthenticationTagSize {
+			return RemoteRecord{}, errors.New("server returned malformed encrypted record data")
+		}
+		if len(message.GetPayloadNonce()) != model.RecordNonceSize ||
+			len(message.GetMetadataNonce()) != model.RecordNonceSize {
+			return RemoteRecord{}, errors.New("server returned invalid record nonce size")
+		}
 	}
 	record := RemoteRecord{
 		ID: id,
