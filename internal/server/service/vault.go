@@ -218,11 +218,14 @@ func validateEncryptedRecordInput(record model.Record, limits model.RecordLimits
 	if err := record.Type.Validate(); err != nil {
 		return err
 	}
-	if record.EncryptionVersion == 0 {
-		return fmt.Errorf("%w: encryption version must be positive", model.ErrInvalidInput)
+	if record.EncryptionVersion != model.CurrentRecordEncryptionVersion {
+		return fmt.Errorf("%w: unsupported encryption version %d", model.ErrInvalidInput, record.EncryptionVersion)
 	}
-	if len(record.EncryptedPayload) == 0 || len(record.EncryptedMetadata) == 0 || len(record.PayloadNonce) == 0 || len(record.MetadataNonce) == 0 {
-		return fmt.Errorf("%w: encrypted data and nonces are required", model.ErrInvalidInput)
+	if len(record.EncryptedPayload) < model.RecordAuthenticationTagSize || len(record.EncryptedMetadata) < model.RecordAuthenticationTagSize {
+		return fmt.Errorf("%w: encrypted data is malformed", model.ErrInvalidInput)
+	}
+	if len(record.PayloadNonce) != model.RecordNonceSize || len(record.MetadataNonce) != model.RecordNonceSize {
+		return fmt.Errorf("%w: encrypted record nonce must be %d bytes", model.ErrInvalidInput, model.RecordNonceSize)
 	}
 	if int64(len(record.EncryptedPayload)) > limits.MaxEncryptedPayloadSize || int64(len(record.EncryptedMetadata)) > limits.MaxEncryptedMetadataSize {
 		return model.ErrPayloadTooLarge

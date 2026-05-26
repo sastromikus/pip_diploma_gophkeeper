@@ -130,7 +130,82 @@ func newTestVault(t *testing.T, repository RecordRepository) *VaultService {
 func validEncryptedInput() EncryptedRecordInput {
 	return EncryptedRecordInput{
 		Type: model.RecordTypeCredentials, EncryptionVersion: 1,
-		EncryptedPayload: []byte("payload"), EncryptedMetadata: []byte("metadata"),
-		PayloadNonce: []byte("payload-nonce"), MetadataNonce: []byte("metadata-nonce"),
+		EncryptedPayload: make([]byte, model.RecordAuthenticationTagSize), EncryptedMetadata: make([]byte, model.RecordAuthenticationTagSize),
+		PayloadNonce: make([]byte, model.RecordNonceSize), MetadataNonce: make([]byte, model.RecordNonceSize),
+	}
+}
+
+func TestNewVaultServiceRejectsInvalidDependencies(t *testing.T) {
+	limits := model.RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 256}
+	if _, err := NewVaultService(nil, limits); !errors.Is(err, model.ErrInvalidInput) {
+		t.Fatalf("NewVaultService(nil) error = %v, want ErrInvalidInput", err)
+	}
+	if _, err := NewVaultService(&vaultRepositoryStub{}, model.RecordLimits{}); !errors.Is(err, model.ErrInvalidInput) {
+		t.Fatalf("NewVaultService(invalid limits) error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestVaultServiceUpdateAndDelete(t *testing.T) {
+	repository := &vaultRepositoryStub{
+		updateFn: func(_ context.Context, record model.Record, expectedVersion int64) (model.Record, error) {
+			if expectedVersion != 2 {
+				t.Fatalf("expectedVersion = %d, want 2", expectedVersion)
+			}
+			record.Version = 3
+			return record, nil
+		},
+		deleteFn: func(_ context.Context, userID, recordID model.ID, expectedVersion int64) (model.Record, error) {
+			if userID != testUserID || recordID != testRecordID || expectedVersion != 3 {
+				t.Fatalf("unexpected delete arguments: %s %s %d", userID, recordID, expectedVersion)
+			}
+			deletedAt := time.Now().UTC()
+			return model.Record{ID: recordID, UserID: userID, Type: model.RecordTypeCredentials, EncryptionVersion: model.CurrentRecordEncryptionVersion, Version: 4, Revision: 4, CreatedAt: deletedAt, UpdatedAt: deletedAt, DeletedAt: &deletedAt}, nil
+		},
+	}
+	vault := newTestVault(t, repository)
+	updated, err := vault.Update(context.Background(), UpdateRecordInput{UserID: testUserID, ID: testRecordID, ExpectedVersion: 2, Data: validEncryptedInput()})
+	if err != nil || updated.Version != 3 {
+		t.Fatalf("Update() = %+v, %v", updated, err)
+	}
+	deleted, err := vault.Delete(context.Background(), testUserID, testRecordID, 3)
+	if err != nil || !deleted.Deleted() {
+		t.Fatalf("Delete() = %+v, %v", deleted, err)
+	}
+}
+
+func TestVaultServiceRejectsMalformedEncryptedInput(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*EncryptedRecordInput)
+	}{
+		{name: "unsupported version", mutate: func(input *EncryptedRecordInput) { input.EncryptionVersion++ }},
+		{name: "short payload", mutate: func(input *EncryptedRecordInput) {
+			input.EncryptedPayload = make([]byte, model.RecordAuthenticationTagSize-1)
+		}},
+		{name: "short metadata", mutate: func(input *EncryptedRecordInput) {
+			input.EncryptedMetadata = make([]byte, model.RecordAuthenticationTagSize-1)
+		}},
+		{name: "payload nonce", mutate: func(input *EncryptedRecordInput) { input.PayloadNonce = make([]byte, model.RecordNonceSize-1) }},
+		{name: "metadata nonce", mutate: func(input *EncryptedRecordInput) { input.MetadataNonce = make([]byte, model.RecordNonceSize-1) }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			vault := newTestVault(t, &vaultRepositoryStub{})
+			input := validEncryptedInput()
+			test.mutate(&input)
+			if _, err := vault.Create(context.Background(), CreateRecordInput{UserID: testUserID, ID: testRecordID, Data: input}); !errors.Is(err, model.ErrInvalidInput) {
+				t.Fatalf("Create() error = %v, want ErrInvalidInput", err)
+			}
+		})
+	}
+}
+
+func TestVaultServiceRejectsInvalidPagination(t *testing.T) {
+	vault := newTestVault(t, &vaultRepositoryStub{})
+	if _, err := vault.List(context.Background(), ListRecordsInput{UserID: testUserID, Limit: MaxListLimit + 1}); !errors.Is(err, model.ErrInvalidInput) {
+		t.Fatalf("List() error = %v, want ErrInvalidInput", err)
+	}
+	if _, err := vault.Sync(context.Background(), SyncRecordsInput{UserID: testUserID, AfterRevision: -1}); !errors.Is(err, model.ErrInvalidInput) {
+		t.Fatalf("Sync() error = %v, want ErrInvalidInput", err)
 	}
 }

@@ -530,3 +530,15 @@ On Linux or macOS:
 ```sh
 ./scripts/coverage.sh
 ```
+
+## Cryptographic record validation
+
+The client and server share the encrypted-record format invariants from `internal/model`:
+
+- encryption format version `1`;
+- 12-byte AES-GCM nonces;
+- ciphertext must contain at least the 16-byte authentication tag;
+- unsupported format versions are rejected before persistence;
+- tombstones contain no ciphertext or nonce data.
+
+These checks are enforced at the service boundary as well as when stored records are validated, so malformed encrypted blobs cannot be persisted through gRPC.

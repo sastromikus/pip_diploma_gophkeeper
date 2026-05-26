@@ -16,11 +16,11 @@ import (
 
 const (
 	CurrentKeyDerivationVersion uint32 = 1
-	CurrentEncryptionVersion    uint32 = 1
+	CurrentEncryptionVersion           = domain.CurrentRecordEncryptionVersion
 	DataKeySize                        = 32
 	SaltSize                           = 16
-	NonceSize                          = 12
-	AEADTagSize                        = 16
+	NonceSize                          = domain.RecordNonceSize
+	AEADTagSize                        = domain.RecordAuthenticationTagSize
 	EncryptedDataKeySize               = DataKeySize + AEADTagSize
 
 	argonTime    uint32 = 3

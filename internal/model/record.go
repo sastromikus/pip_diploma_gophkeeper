@@ -39,8 +39,8 @@ func (record Record) Validate(limits RecordLimits) error {
 	if err := record.Type.Validate(); err != nil {
 		return err
 	}
-	if record.EncryptionVersion == 0 {
-		return fmt.Errorf("%w: encryption version must be positive", ErrInvalidInput)
+	if record.EncryptionVersion != CurrentRecordEncryptionVersion {
+		return fmt.Errorf("%w: unsupported encryption version %d", ErrInvalidInput, record.EncryptionVersion)
 	}
 	if limits.MaxEncryptedPayloadSize <= 0 || limits.MaxEncryptedMetadataSize <= 0 {
 		return fmt.Errorf("%w: encrypted record limits must be positive", ErrInvalidInput)
@@ -58,17 +58,27 @@ func (record Record) Validate(limits RecordLimits) error {
 		if len(record.EncryptedMetadata) == 0 {
 			return fmt.Errorf("%w: encrypted metadata is required", ErrInvalidInput)
 		}
-		if len(record.PayloadNonce) == 0 {
-			return fmt.Errorf("%w: payload nonce is required", ErrInvalidInput)
-		}
-		if len(record.MetadataNonce) == 0 {
-			return fmt.Errorf("%w: metadata nonce is required", ErrInvalidInput)
-		}
+
+		// Check size limits before validating the encrypted format so oversized
+		// input is rejected consistently as ErrPayloadTooLarge.
 		if int64(len(record.EncryptedPayload)) > limits.MaxEncryptedPayloadSize {
 			return fmt.Errorf("%w: encrypted payload exceeds %d bytes", ErrPayloadTooLarge, limits.MaxEncryptedPayloadSize)
 		}
 		if int64(len(record.EncryptedMetadata)) > limits.MaxEncryptedMetadataSize {
 			return fmt.Errorf("%w: encrypted metadata exceeds %d bytes", ErrPayloadTooLarge, limits.MaxEncryptedMetadataSize)
+		}
+
+		if len(record.PayloadNonce) != RecordNonceSize {
+			return fmt.Errorf("%w: payload nonce must be %d bytes", ErrInvalidInput, RecordNonceSize)
+		}
+		if len(record.MetadataNonce) != RecordNonceSize {
+			return fmt.Errorf("%w: metadata nonce must be %d bytes", ErrInvalidInput, RecordNonceSize)
+		}
+		if len(record.EncryptedPayload) < RecordAuthenticationTagSize {
+			return fmt.Errorf("%w: encrypted payload is malformed", ErrInvalidInput)
+		}
+		if len(record.EncryptedMetadata) < RecordAuthenticationTagSize {
+			return fmt.Errorf("%w: encrypted metadata is malformed", ErrInvalidInput)
 		}
 	}
 

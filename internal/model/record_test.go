@@ -42,10 +42,10 @@ func validRecord() Record {
 		UserID:            ID("550e8400-e29b-41d4-a716-446655440001"),
 		Type:              RecordTypeCredentials,
 		EncryptionVersion: 1,
-		EncryptedPayload:  []byte("payload"),
-		EncryptedMetadata: []byte("metadata"),
-		PayloadNonce:      []byte("payload-nonce"),
-		MetadataNonce:     []byte("metadata-nonce"),
+		EncryptedPayload:  make([]byte, RecordAuthenticationTagSize),
+		EncryptedMetadata: make([]byte, RecordAuthenticationTagSize),
+		PayloadNonce:      make([]byte, RecordNonceSize),
+		MetadataNonce:     make([]byte, RecordNonceSize),
 		Version:           1,
 		Revision:          1,
 		CreatedAt:         createdAt,
@@ -76,5 +76,35 @@ func TestRecordValidateRejectsTombstoneWithPayload(t *testing.T) {
 	limits := RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}
 	if err := record.Validate(limits); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Validate() error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestRecordValidateRejectsUnsupportedEncryptionVersion(t *testing.T) {
+	record := validRecord()
+	record.EncryptionVersion = CurrentRecordEncryptionVersion + 1
+	if err := record.Validate(RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Validate() error = %v, want ErrInvalidInput", err)
+	}
+}
+
+func TestRecordValidateRejectsMalformedCryptographicFields(t *testing.T) {
+	limits := RecordLimits{MaxEncryptedPayloadSize: 1024, MaxEncryptedMetadataSize: 1024}
+	tests := []struct {
+		name   string
+		mutate func(*Record)
+	}{
+		{name: "payload nonce", mutate: func(record *Record) { record.PayloadNonce = make([]byte, RecordNonceSize-1) }},
+		{name: "metadata nonce", mutate: func(record *Record) { record.MetadataNonce = make([]byte, RecordNonceSize-1) }},
+		{name: "payload ciphertext", mutate: func(record *Record) { record.EncryptedPayload = make([]byte, RecordAuthenticationTagSize-1) }},
+		{name: "metadata ciphertext", mutate: func(record *Record) { record.EncryptedMetadata = make([]byte, RecordAuthenticationTagSize-1) }},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			record := validRecord()
+			test.mutate(&record)
+			if err := record.Validate(limits); !errors.Is(err, ErrInvalidInput) {
+				t.Fatalf("Validate() error = %v, want ErrInvalidInput", err)
+			}
+		})
 	}
 }
