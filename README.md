@@ -383,47 +383,51 @@ from the entered password, and sends only the encrypted envelope to the server.
 Login verifies that the returned envelope can be opened before saving the new
 session. Logout revokes the server session before removing local state.
 
-## Client vault application layer
+## Offline-first client vault
 
-The client now has a transport and application layer for encrypted vault records.
-It can create, fetch, list, update, and delete records through the authenticated
-gRPC API while keeping plaintext data and the unlocked data key inside the
-client process only.
+After registration or login, the client performs ordinary vault CRUD against the
+encrypted local SQLite database. A running server is required only for
+`register`, `login`, `logout`, and `sync`.
 
-For every operation that needs record contents, the application loads the saved
-session, unlocks the encrypted data key with the entered master password, and
-wipes the temporary key buffer after use. Record IDs are generated locally as
-UUIDv4 values before encryption so the ID can be included in AEAD associated
-data.
-
-List operations follow all server pages and reject repeated or empty continuation
-cursors when `has_more` is set. Update and delete first read the current record
-version and then use optimistic locking on the server. The next step will expose
-these application operations as interactive CLI commands for all four required
-record types.
-
-## Vault CLI commands
-
-After registration or login, the client can work with encrypted records directly from the command line. Secrets are requested interactively and are not accepted as ordinary command-line flags.
+The local workflow is:
 
 ```cmd
-go run .\cmd\client add credentials -server 127.0.0.1:3200 -insecure
-go run .\cmd\client add text -server 127.0.0.1:3200 -insecure
-go run .\cmd\client add binary -server 127.0.0.1:3200 -insecure
-go run .\cmd\client add card -server 127.0.0.1:3200 -insecure
-go run .\cmd\client list -server 127.0.0.1:3200 -insecure
-go run .\cmd\client get <record-id> -server 127.0.0.1:3200 -insecure
-go run .\cmd\client update <record-id> -server 127.0.0.1:3200 -insecure
-go run .\cmd\client delete <record-id> -server 127.0.0.1:3200 -insecure
+go run .\cmd\client add credentials
+go run .\cmd\client add text
+go run .\cmd\client add binary
+go run .\cmd\client add card
+go run .\cmd\client list
+go run .\cmd\client get <record-id>
+go run .\cmd\client update <record-id>
+go run .\cmd\client delete <record-id>
 ```
+
+The `-config` and `-storage` flags can select another local client profile. The
+connection flags are not used by local CRUD commands.
+
+New records are encrypted locally and stored with the `created` status. Changes
+to server-backed records are stored as `updated`; deletions are represented as
+local tombstones with the `deleted` status. Deleting a record that has never
+been synchronized removes it from the local database immediately.
+
+The `list` command displays each record's local synchronization status. Run:
+
+```cmd
+go run .\cmd\client sync -server 127.0.0.1:3200 -insecure
+```
+
+to exchange pending ciphertext and tombstones with the server.
 
 For a binary record, provide an explicit destination path after the record ID:
 
 ```cmd
-go run .\cmd\client get <record-id> restored-file.bin -server 127.0.0.1:3200 -insecure
+go run .\cmd\client get <record-id> restored-file.bin
 ```
 
-The client refuses to overwrite an existing file. `update` performs a complete replacement of the selected record while preserving its type. The current server version is fetched first and used for optimistic locking.
+The client refuses to overwrite an existing file. `update` performs a complete
+replacement while preserving the original record type. Plaintext and the
+unlocked data key remain in the client process only and are never written to
+SQLite.
 
 
 ### gRPC security middleware

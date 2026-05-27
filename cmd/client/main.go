@@ -73,6 +73,31 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		return fmt.Errorf("load client configuration: %w", err)
 	}
+
+	sessionStore, err := clientstorage.NewFileSessionStore(cfg.ConfigPath)
+	if err != nil {
+		return fmt.Errorf("create session store: %w", err)
+	}
+	cryptoService := clientcrypto.NewService()
+
+	switch command {
+	case "add", "list", "get", "update", "delete":
+		local, err := clientstorage.OpenLocalDatabase(context.Background(), cfg.StoragePath)
+		if err != nil {
+			return fmt.Errorf("open local encrypted storage: %w", err)
+		}
+		defer func() {
+			if closeErr := local.Close(); closeErr != nil {
+				slog.Warn("close local encrypted storage", "error", closeErr)
+			}
+		}()
+		vaultService, err := clientapp.NewLocalVaultService(sessionStore, local, cryptoService)
+		if err != nil {
+			return fmt.Errorf("create local vault service: %w", err)
+		}
+		return executeVaultCommand(vaultCmd, vaultService, stdin, stdout)
+	}
+
 	remote, err := clienttransport.Dial(context.Background(), clienttransport.Config{Address: cfg.ServerAddress, TLSCAFile: cfg.TLSCAFile, Insecure: cfg.Insecure})
 	if err != nil {
 		return err
@@ -82,18 +107,10 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 			slog.Warn("close client connection", "error", closeErr)
 		}
 	}()
-	sessionStore, err := clientstorage.NewFileSessionStore(cfg.ConfigPath)
-	if err != nil {
-		return fmt.Errorf("create session store: %w", err)
-	}
-	cryptoService := clientcrypto.NewService()
+
 	authService, err := clientapp.NewAuthService(remote, sessionStore, cryptoService)
 	if err != nil {
 		return fmt.Errorf("create client authentication service: %w", err)
-	}
-	vaultService, err := clientapp.NewVaultService(remote, sessionStore, cryptoService)
-	if err != nil {
-		return fmt.Errorf("create client vault service: %w", err)
 	}
 
 	switch command {
@@ -129,8 +146,6 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 		}
 		_, err = fmt.Fprintln(stdout, "Logout completed. Local session removed.")
 		return err
-	case "add", "list", "get", "update", "delete":
-		return executeVaultCommand(vaultCmd, vaultService, stdin, stdout)
 	case "sync":
 		ctx, cancel := commandContext()
 		defer cancel()
@@ -154,6 +169,7 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 		_, err = fmt.Fprintf(stdout, "Synchronization completed: uploaded=%d downloaded=%d conflicts=%d revision=%d\n", report.Uploaded, report.Downloaded, report.Conflicts, report.Revision)
 		return err
 	}
+
 	return nil
 }
 
@@ -212,17 +228,21 @@ func writeUsage(output io.Writer) error {
   gophkeeper-client login [connection flags]
   gophkeeper-client logout [connection flags]
   gophkeeper-client sync [connection flags]
-  gophkeeper-client add <credentials|text|binary|card> [connection flags]
-  gophkeeper-client list [connection flags]
-  gophkeeper-client get <record-id> [output-path] [connection flags]
-  gophkeeper-client update <record-id> [connection flags]
-  gophkeeper-client delete <record-id> [connection flags]
+  gophkeeper-client add <credentials|text|binary|card> [local flags]
+  gophkeeper-client list [local flags]
+  gophkeeper-client get <record-id> [output-path] [local flags]
+  gophkeeper-client update <record-id> [local flags]
+  gophkeeper-client delete <record-id> [local flags]
   gophkeeper-client version
 
 For binary records, get writes the file only when output-path is provided.
 Existing files are never overwritten.
 
-Connection flags:
+Local flags:
+  -config <path>
+  -storage <path>
+
+Connection flags for register, login, logout, and sync:
   -server <host:port>
   -tls-ca <path>
   -insecure

@@ -46,10 +46,11 @@ type RecordView struct {
 
 // RecordSummary contains display-safe list information.
 type RecordSummary struct {
-	ID      model.ID
-	Type    model.RecordType
-	Version int64
-	Title   string
+	ID         model.ID
+	Type       model.RecordType
+	Version    int64
+	Title      string
+	SyncStatus storage.SyncStatus
 }
 
 // VaultService coordinates session loading, key unlocking and remote CRUD.

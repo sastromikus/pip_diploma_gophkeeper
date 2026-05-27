@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -13,10 +14,19 @@ import (
 
 	clientapp "github.com/sastromikus/gophkeeper/internal/client/app"
 	clientmodel "github.com/sastromikus/gophkeeper/internal/client/model"
+	clienttransport "github.com/sastromikus/gophkeeper/internal/client/transport"
 	"github.com/sastromikus/gophkeeper/internal/model"
 )
 
 const maxCLIFileSize = int64(10 * 1024 * 1024)
+
+type vaultService interface {
+	Create(context.Context, string, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
+	Get(context.Context, string, model.ID) (clientapp.RecordView, error)
+	List(context.Context, string) ([]clientapp.RecordSummary, error)
+	Update(context.Context, string, model.ID, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
+	Delete(context.Context, model.ID) error
+}
 
 type vaultCommand struct {
 	name       string
@@ -91,7 +101,7 @@ func parseRecordType(value string) (model.RecordType, error) {
 	}
 }
 
-func executeVaultCommand(command vaultCommand, service *clientapp.VaultService, stdin io.Reader, stdout io.Writer) error {
+func executeVaultCommand(command vaultCommand, service vaultService, stdin io.Reader, stdout io.Writer) error {
 	reader := bufio.NewReader(stdin)
 	switch command.name {
 	case "add":
@@ -109,7 +119,7 @@ func executeVaultCommand(command vaultCommand, service *clientapp.VaultService, 
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(stdout, "Record created: %s (version %d)\n", record.ID, record.Version)
+		_, err = fmt.Fprintf(stdout, "Record saved locally: %s. Run sync to upload it.\n", record.ID)
 		return err
 	case "list":
 		password, err := readPassword(stdin, reader, stdout, "Master password: ")
@@ -127,7 +137,7 @@ func executeVaultCommand(command vaultCommand, service *clientapp.VaultService, 
 			return err
 		}
 		for _, record := range records {
-			if _, err := fmt.Fprintf(stdout, "%s\t%s\tv%d\t%s\n", record.ID, record.Type, record.Version, record.Title); err != nil {
+			if _, err := fmt.Fprintf(stdout, "%s\t%s\tv%d\t%s\t%s\n", record.ID, record.Type, record.Version, record.SyncStatus, record.Title); err != nil {
 				return fmt.Errorf("write record list: %w", err)
 			}
 		}
@@ -165,7 +175,7 @@ func executeVaultCommand(command vaultCommand, service *clientapp.VaultService, 
 		if err != nil {
 			return err
 		}
-		_, err = fmt.Fprintf(stdout, "Record updated: %s (version %d)\n", updated.ID, updated.Version)
+		_, err = fmt.Fprintf(stdout, "Record updated locally: %s. Run sync to upload changes.\n", updated.ID)
 		return err
 	case "delete":
 		ctx, cancel := commandContext()
@@ -173,7 +183,7 @@ func executeVaultCommand(command vaultCommand, service *clientapp.VaultService, 
 		if err := service.Delete(ctx, command.id); err != nil {
 			return err
 		}
-		_, err := fmt.Fprintf(stdout, "Record deleted: %s\n", command.id)
+		_, err := fmt.Fprintf(stdout, "Record deleted locally: %s. Run sync to propagate deletion.\n", command.id)
 		return err
 	default:
 		return fmt.Errorf("unsupported vault command %q", command.name)
