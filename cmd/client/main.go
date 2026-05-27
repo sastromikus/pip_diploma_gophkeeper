@@ -50,6 +50,7 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 	command := args[0]
 	var configArgs []string
 	var vaultCmd vaultCommand
+	var conflictCmd conflictCommand
 	switch command {
 	case "register", "login", "logout", "sync":
 		configArgs = args[1:]
@@ -60,6 +61,13 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 			return err
 		}
 		configArgs = vaultCmd.configArgs
+	case "conflicts", "resolve":
+		var err error
+		conflictCmd, err = parseConflictCommand(args)
+		if err != nil {
+			return err
+		}
+		configArgs = conflictCmd.configArgs
 	case "help", "-h", "--help":
 		return writeUsage(stdout)
 	default:
@@ -96,6 +104,21 @@ func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
 			return fmt.Errorf("create local vault service: %w", err)
 		}
 		return executeVaultCommand(vaultCmd, vaultService, stdin, stdout)
+	case "conflicts", "resolve":
+		local, err := clientstorage.OpenLocalDatabase(context.Background(), cfg.StoragePath)
+		if err != nil {
+			return fmt.Errorf("open local encrypted storage: %w", err)
+		}
+		defer func() {
+			if closeErr := local.Close(); closeErr != nil {
+				slog.Warn("close local encrypted storage", "error", closeErr)
+			}
+		}()
+		conflictService, err := clientapp.NewConflictService(local)
+		if err != nil {
+			return fmt.Errorf("create conflict service: %w", err)
+		}
+		return executeConflictCommand(conflictCmd, conflictService, stdout)
 	}
 
 	remote, err := clienttransport.Dial(context.Background(), clienttransport.Config{Address: cfg.ServerAddress, TLSCAFile: cfg.TLSCAFile, Insecure: cfg.Insecure})
@@ -233,10 +256,14 @@ func writeUsage(output io.Writer) error {
   gophkeeper-client get <record-id> [output-path] [local flags]
   gophkeeper-client update <record-id> [local flags]
   gophkeeper-client delete <record-id> [local flags]
+  gophkeeper-client conflicts [local flags]
+  gophkeeper-client resolve <record-id> <local|server> [local flags]
   gophkeeper-client version
 
 For binary records, get writes the file only when output-path is provided.
 Existing files are never overwritten.
+Conflict resolution never decrypts data. Keeping local queues the selected
+ciphertext for the next sync; keeping server applies the downloaded copy.
 
 Local flags:
   -config <path>

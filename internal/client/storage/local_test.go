@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
@@ -330,5 +331,76 @@ func TestApplyRemotePageStoresNewRecord(t *testing.T) {
 	stored, err := database.Get(context.Background(), record.ID)
 	if err != nil || stored.Revision != record.Revision {
 		t.Fatalf("Get() = %#v, %v", stored, err)
+	}
+}
+
+func TestConflictLifecycle(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	ctx := context.Background()
+
+	local := testLocalRecord(t, SyncStatusUpdated)
+	if err := database.Save(ctx, local); err != nil {
+		t.Fatalf("Save() local error = %v", err)
+	}
+	remote := local
+	remote.Data.EncryptedPayload = bytes.Repeat([]byte{9}, clientcrypto.AEADTagSize)
+	remote.Version++
+	remote.Revision++
+	remote.UpdatedAt = remote.UpdatedAt.Add(time.Second)
+	remote.SyncStatus = SyncStatusSynced
+
+	conflicts, err := database.ApplyRemotePage(ctx, []LocalRecord{remote}, remote.Revision)
+	if err != nil || conflicts != 1 {
+		t.Fatalf("ApplyRemotePage() = %d, %v", conflicts, err)
+	}
+	listed, err := database.ListConflicts(ctx)
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("ListConflicts() = %#v, %v", listed, err)
+	}
+	if listed[0].Local.Version != local.Version || listed[0].Remote.Version != remote.Version {
+		t.Fatalf("conflict versions = %#v", listed[0])
+	}
+
+	if err := database.ResolveConflict(ctx, local.ID, ConflictResolutionLocal); err != nil {
+		t.Fatalf("ResolveConflict(local) error = %v", err)
+	}
+	resolved, err := database.Get(ctx, local.ID)
+	if err != nil {
+		t.Fatalf("Get() resolved local error = %v", err)
+	}
+	if resolved.SyncStatus != SyncStatusUpdated || resolved.Version != remote.Version || resolved.Revision != remote.Revision {
+		t.Fatalf("resolved local = %#v", resolved)
+	}
+	if _, err := database.GetConflict(ctx, local.ID); !errors.Is(err, model.ErrNotFound) {
+		t.Fatalf("GetConflict() error = %v, want ErrNotFound", err)
+	}
+}
+
+func TestResolveConflictKeepsServerVersion(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	ctx := context.Background()
+
+	local := testLocalRecord(t, SyncStatusUpdated)
+	if err := database.Save(ctx, local); err != nil {
+		t.Fatalf("Save() local error = %v", err)
+	}
+	remote := local
+	remote.Data.EncryptedPayload = bytes.Repeat([]byte{7}, clientcrypto.AEADTagSize)
+	remote.Version++
+	remote.Revision++
+	remote.UpdatedAt = remote.UpdatedAt.Add(time.Second)
+	remote.SyncStatus = SyncStatusSynced
+	if _, err := database.ApplyRemotePage(ctx, []LocalRecord{remote}, remote.Revision); err != nil {
+		t.Fatalf("ApplyRemotePage() error = %v", err)
+	}
+	if err := database.ResolveConflict(ctx, local.ID, ConflictResolutionServer); err != nil {
+		t.Fatalf("ResolveConflict(server) error = %v", err)
+	}
+	resolved, err := database.Get(ctx, local.ID)
+	if err != nil {
+		t.Fatalf("Get() resolved server error = %v", err)
+	}
+	if resolved.SyncStatus != SyncStatusSynced || string(resolved.Data.EncryptedPayload) != string(remote.Data.EncryptedPayload) {
+		t.Fatalf("resolved server = %#v", resolved)
 	}
 }

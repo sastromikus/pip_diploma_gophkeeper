@@ -203,6 +203,9 @@ func (service *LocalVaultService) Delete(ctx context.Context, id model.ID) error
 	if err != nil {
 		return err
 	}
+	if current.SyncStatus == storage.SyncStatusConflict {
+		return fmt.Errorf("%w: resolve record conflict before deleting", model.ErrVersionConflict)
+	}
 	if current.SyncStatus == storage.SyncStatusCreated {
 		if err := service.local.Delete(ctx, id); err != nil {
 			return fmt.Errorf("remove unsynchronized local record: %w", err)

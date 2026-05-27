@@ -546,3 +546,30 @@ The client and server share the encrypted-record format invariants from `interna
 - tombstones contain no ciphertext or nonce data.
 
 These checks are enforced at the service boundary as well as when stored records are validated, so malformed encrypted blobs cannot be persisted through gRPC.
+
+## Resolving synchronization conflicts
+
+When two clients change the same record from different server versions, sync preserves the local ciphertext and stores the newer server ciphertext separately. No version is silently discarded.
+
+List unresolved conflicts locally:
+
+```cmd
+go run .\cmd\client conflicts
+```
+
+Keep the local version and queue it for the next upload using the latest server version as the optimistic-lock base:
+
+```cmd
+go run .\cmd\client resolve <record-id> local
+go run .\cmd\client sync -server 127.0.0.1:3200 -insecure
+```
+
+Replace the local version with the server version:
+
+```cmd
+go run .\cmd\client resolve <record-id> server
+```
+
+Conflict listing and resolution operate only on encrypted local data and do not require the master password or a server connection.
+
+A local version cannot overwrite a server tombstone under the same record ID. The record ID is authenticated as AAD and deleted server IDs remain tombstones for synchronization. To preserve such local content, inspect it before resolving, keep the server deletion, and create a new record with a new ID.

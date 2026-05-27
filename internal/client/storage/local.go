@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const localSchemaVersion = 1
+const localSchemaVersion = 2
 
 // SyncStatus describes the relationship between a local record and the server.
 type SyncStatus string
@@ -301,7 +301,7 @@ ORDER BY updated_at, id`, string(SyncStatusSynced))
 	return records, nil
 }
 
-// Delete permanently removes a local record. Server deletion is represented separately by a tombstone.
+// Delete permanently removes a local record and any preserved remote conflict copy.
 func (database *LocalDatabase) Delete(ctx context.Context, id model.ID) error {
 	if err := database.usable(ctx); err != nil {
 		return err
@@ -309,7 +309,12 @@ func (database *LocalDatabase) Delete(ctx context.Context, id model.ID) error {
 	if id.IsZero() {
 		return fmt.Errorf("%w: record ID is required", model.ErrInvalidInput)
 	}
-	result, err := database.db.ExecContext(ctx, "DELETE FROM records WHERE id = ?", id.String())
+	tx, err := database.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin local record deletion: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+	result, err := tx.ExecContext(ctx, "DELETE FROM records WHERE id = ?", id.String())
 	if err != nil {
 		return fmt.Errorf("delete local record: %w", err)
 	}
@@ -319,6 +324,12 @@ func (database *LocalDatabase) Delete(ctx context.Context, id model.ID) error {
 	}
 	if count == 0 {
 		return model.ErrNotFound
+	}
+	if _, err := tx.ExecContext(ctx, "DELETE FROM record_conflicts WHERE id = ?", id.String()); err != nil {
+		return fmt.Errorf("delete local conflict copy: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit local record deletion: %w", err)
 	}
 	return nil
 }
@@ -421,6 +432,37 @@ func (database *LocalDatabase) migrate(ctx context.Context) error {
 		}
 		if _, err := tx.ExecContext(ctx, "UPDATE schema_version SET version = 1"); err != nil {
 			return fmt.Errorf("record local schema version 1: %w", err)
+		}
+		version = 1
+	}
+
+	if version < 2 {
+		if _, err := tx.ExecContext(ctx, `CREATE TABLE record_conflicts (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL CHECK (type IN ('credentials', 'text', 'binary', 'bank_card')),
+    encryption_version INTEGER NOT NULL CHECK (encryption_version > 0),
+    encrypted_payload BLOB,
+    encrypted_metadata BLOB,
+    payload_nonce BLOB,
+    metadata_nonce BLOB,
+    version INTEGER NOT NULL CHECK (version > 0),
+    revision INTEGER NOT NULL CHECK (revision > 0),
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    deleted_at INTEGER,
+    sync_status TEXT NOT NULL CHECK (sync_status = 'synced'),
+    CHECK (updated_at >= created_at),
+    CHECK (deleted_at IS NULL OR deleted_at >= updated_at),
+    CHECK (
+        (deleted_at IS NULL AND encrypted_payload IS NOT NULL AND encrypted_metadata IS NOT NULL AND payload_nonce IS NOT NULL AND metadata_nonce IS NOT NULL)
+        OR
+        (deleted_at IS NOT NULL AND encrypted_payload IS NULL AND encrypted_metadata IS NULL AND payload_nonce IS NULL AND metadata_nonce IS NULL)
+    )
+)`); err != nil {
+			return fmt.Errorf("apply local schema version 2: %w", err)
+		}
+		if _, err := tx.ExecContext(ctx, "UPDATE schema_version SET version = 2"); err != nil {
+			return fmt.Errorf("record local schema version 2: %w", err)
 		}
 	}
 
@@ -545,6 +587,9 @@ func (database *LocalDatabase) ApplyRemotePage(ctx context.Context, records []Lo
 		default:
 			status := SyncStatus(statusText)
 			if status != SyncStatusSynced && record.Revision > localRevision {
+				if err := saveConflictRecordTx(ctx, tx, record); err != nil {
+					return 0, err
+				}
 				if _, err := tx.ExecContext(ctx, "UPDATE records SET sync_status = ? WHERE id = ?", string(SyncStatusConflict), record.ID.String()); err != nil {
 					return 0, fmt.Errorf("mark local record %s as conflicted: %w", record.ID, err)
 				}
@@ -554,6 +599,9 @@ func (database *LocalDatabase) ApplyRemotePage(ctx context.Context, records []Lo
 			if record.Revision >= localRevision {
 				if err := saveLocalRecordTx(ctx, tx, record); err != nil {
 					return 0, err
+				}
+				if _, err := tx.ExecContext(ctx, "DELETE FROM record_conflicts WHERE id = ?", record.ID.String()); err != nil {
+					return 0, fmt.Errorf("delete stale conflict version %s: %w", record.ID, err)
 				}
 			}
 		}
@@ -565,6 +613,43 @@ func (database *LocalDatabase) ApplyRemotePage(ctx context.Context, records []Lo
 		return 0, fmt.Errorf("commit remote page: %w", err)
 	}
 	return conflicts, nil
+}
+
+func saveConflictRecordTx(ctx context.Context, tx *sql.Tx, record LocalRecord) error {
+	record.SyncStatus = SyncStatusSynced
+	var deletedAt any
+	if record.DeletedAt != nil {
+		deletedAt = record.DeletedAt.UTC().UnixNano()
+	}
+	_, err := tx.ExecContext(ctx, `
+INSERT INTO record_conflicts (
+    id, type, encryption_version, encrypted_payload, encrypted_metadata,
+    payload_nonce, metadata_nonce, version, revision, created_at, updated_at,
+    deleted_at, sync_status
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(id) DO UPDATE SET
+    type = excluded.type,
+    encryption_version = excluded.encryption_version,
+    encrypted_payload = excluded.encrypted_payload,
+    encrypted_metadata = excluded.encrypted_metadata,
+    payload_nonce = excluded.payload_nonce,
+    metadata_nonce = excluded.metadata_nonce,
+    version = excluded.version,
+    revision = excluded.revision,
+    created_at = excluded.created_at,
+    updated_at = excluded.updated_at,
+    deleted_at = excluded.deleted_at,
+    sync_status = excluded.sync_status`,
+		record.ID.String(), string(record.Data.Type), record.Data.EncryptionVersion,
+		nullBytes(record.Data.EncryptedPayload), nullBytes(record.Data.EncryptedMetadata),
+		nullBytes(record.Data.PayloadNonce), nullBytes(record.Data.MetadataNonce),
+		record.Version, record.Revision, record.CreatedAt.UTC().UnixNano(),
+		record.UpdatedAt.UTC().UnixNano(), deletedAt, string(record.SyncStatus),
+	)
+	if err != nil {
+		return fmt.Errorf("save remote conflict version %s: %w", record.ID, err)
+	}
+	return nil
 }
 
 func saveLocalRecordTx(ctx context.Context, tx *sql.Tx, record LocalRecord) error {
