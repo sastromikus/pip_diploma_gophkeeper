@@ -3,10 +3,10 @@ package main
 import (
 	"bytes"
 	"context"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
-
-	"log/slog"
 
 	"github.com/sastromikus/gophkeeper/internal/server/config"
 )
@@ -27,6 +27,10 @@ func TestRunVersion(t *testing.T) {
 }
 
 func TestRunStartsConfiguredServer(t *testing.T) {
+	unsetEnv(t, "TLS_CERT_FILE")
+	unsetEnv(t, "TLS_KEY_FILE")
+	unsetEnv(t, "SERVER_INSECURE")
+
 	t.Setenv("DATABASE_DSN", "postgres://localhost/gophkeeper")
 	t.Setenv("SERVER_INSECURE", "true")
 
@@ -44,5 +48,26 @@ func TestRunStartsConfiguredServer(t *testing.T) {
 	}
 	if !called {
 		t.Fatal("server runner was not called")
+	}
+}
+
+func unsetEnv(t *testing.T, key string) {
+	t.Helper()
+
+	value, exists := os.LookupEnv(key)
+	t.Cleanup(func() {
+		var err error
+		if exists {
+			err = os.Setenv(key, value)
+		} else {
+			err = os.Unsetenv(key)
+		}
+		if err != nil {
+			t.Errorf("restore environment variable %s: %v", key, err)
+		}
+	})
+
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("unset environment variable %s: %v", key, err)
 	}
 }
