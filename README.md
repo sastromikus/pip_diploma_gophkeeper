@@ -573,3 +573,38 @@ go run .\cmd\client resolve <record-id> server
 Conflict listing and resolution operate only on encrypted local data and do not require the master password or a server connection.
 
 A local version cannot overwrite a server tombstone under the same record ID. The record ID is authenticated as AAD and deleted server IDs remain tombstones for synchronization. To preserve such local content, inspect it before resolving, keep the server deletion, and create a new record with a new ID.
+
+## Local TLS verification
+
+Normal client-server operation uses TLS. Plaintext mode is intended only for local development.
+
+Generate a local development CA and a server certificate for `localhost` and `127.0.0.1`.
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\generate-dev-certs.ps1
+```
+
+Linux/macOS:
+
+```sh
+./scripts/generate-dev-certs.sh
+```
+
+Start the server:
+
+```cmd
+set DATABASE_DSN=postgres://postgres:password@127.0.0.1:5432/gophkeeper?sslmode=disable
+set TLS_CERT_FILE=certificates\dev\server.pem
+set TLS_KEY_FILE=certificates\dev\server.key
+go run .\cmd\server
+```
+
+Connect the client using the generated CA:
+
+```cmd
+go run .\cmd\client login -server localhost:3200 -tls-ca certificates\dev\ca.pem
+```
+
+The generated CA private key and server private key are development artifacts and are ignored by Git. Do not use them in production.
