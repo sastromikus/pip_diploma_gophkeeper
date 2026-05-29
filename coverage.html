@@ -85,7 +85,7 @@
 				
 				<option value="file14">github.com/sastromikus/gophkeeper/internal/client/storage/session.go (59.6%)</option>
 				
-				<option value="file15">github.com/sastromikus/gophkeeper/internal/client/transport/grpc.go (33.9%)</option>
+				<option value="file15">github.com/sastromikus/gophkeeper/internal/client/transport/grpc.go (88.1%)</option>
 				
 				<option value="file16">github.com/sastromikus/gophkeeper/internal/client/transport/vault.go (70.9%)</option>
 				
@@ -3614,68 +3614,68 @@ type Client struct {
 }
 
 // Dial connects to a GophKeeper server.
-func Dial(ctx context.Context, cfg Config) (*Client, error) <span class="cov0" title="0">{
-        if ctx == nil </span><span class="cov0" title="0">{
+func Dial(ctx context.Context, cfg Config) (*Client, error) <span class="cov6" title="3">{
+        if ctx == nil </span><span class="cov1" title="1">{
                 return nil, errors.New("dial context is required")
         }</span>
-        <span class="cov0" title="0">if cfg.Address == "" </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if cfg.Address == "" </span><span class="cov1" title="1">{
                 return nil, errors.New("server address is required")
         }</span>
-        <span class="cov0" title="0">transportCredentials, err := clientCredentials(cfg)
+        <span class="cov1" title="1">transportCredentials, err := clientCredentials(cfg)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">connection, err := grpc.NewClient(cfg.Address, grpc.WithTransportCredentials(transportCredentials))
+        <span class="cov1" title="1">connection, err := grpc.NewClient(cfg.Address, grpc.WithTransportCredentials(transportCredentials))
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create gRPC client: %w", err)
         }</span>
-        <span class="cov0" title="0">client := &amp;Client{connection: connection, auth: gophkeeperv1.NewAuthServiceClient(connection), vault: gophkeeperv1.NewVaultServiceClient(connection)}
+        <span class="cov1" title="1">client := &amp;Client{connection: connection, auth: gophkeeperv1.NewAuthServiceClient(connection), vault: gophkeeperv1.NewVaultServiceClient(connection)}
         return client, nil</span>
 }
 
-func clientCredentials(cfg Config) (credentials.TransportCredentials, error) <span class="cov0" title="0">{
-        if cfg.Insecure </span><span class="cov0" title="0">{
+func clientCredentials(cfg Config) (credentials.TransportCredentials, error) <span class="cov8" title="5">{
+        if cfg.Insecure </span><span class="cov4" title="2">{
                 return insecure.NewCredentials(), nil
         }</span>
-        <span class="cov0" title="0">roots, err := x509.SystemCertPool()
+        <span class="cov6" title="3">roots, err := x509.SystemCertPool()
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("load system certificate pool: %w", err)
         }</span>
-        <span class="cov0" title="0">if roots == nil </span><span class="cov0" title="0">{
+        <span class="cov6" title="3">if roots == nil </span><span class="cov0" title="0">{
                 roots = x509.NewCertPool()
         }</span>
-        <span class="cov0" title="0">if cfg.TLSCAFile != "" </span><span class="cov0" title="0">{
+        <span class="cov6" title="3">if cfg.TLSCAFile != "" </span><span class="cov6" title="3">{
                 data, err := os.ReadFile(cfg.TLSCAFile)
-                if err != nil </span><span class="cov0" title="0">{
+                if err != nil </span><span class="cov1" title="1">{
                         return nil, fmt.Errorf("read TLS CA file: %w", err)
                 }</span>
-                <span class="cov0" title="0">if !roots.AppendCertsFromPEM(data) </span><span class="cov0" title="0">{
+                <span class="cov4" title="2">if !roots.AppendCertsFromPEM(data) </span><span class="cov1" title="1">{
                         return nil, errors.New("TLS CA file contains no valid certificates")
                 }</span>
         }
-        <span class="cov0" title="0">return credentials.NewTLS(&amp;tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}), nil</span>
+        <span class="cov1" title="1">return credentials.NewTLS(&amp;tls.Config{MinVersion: tls.VersionTLS12, RootCAs: roots}), nil</span>
 }
 
 // Close releases the underlying gRPC connection.
-func (client *Client) Close() error <span class="cov0" title="0">{
-        if client == nil || client.connection == nil </span><span class="cov0" title="0">{
+func (client *Client) Close() error <span class="cov4" title="2">{
+        if client == nil || client.connection == nil </span><span class="cov1" title="1">{
                 return nil
         }</span>
-        <span class="cov0" title="0">if err := client.connection.Close(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov1" title="1">if err := client.connection.Close(); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("close gRPC connection: %w", err)
         }</span>
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov1" title="1">return nil</span>
 }
 
 // Register creates an account and initial session.
-func (client *Client) Register(ctx context.Context, login, password string, envelope clientcrypto.KeyEnvelope) (string, time.Time, clientcrypto.KeyEnvelope, error) <span class="cov1" title="1">{
+func (client *Client) Register(ctx context.Context, login, password string, envelope clientcrypto.KeyEnvelope) (string, time.Time, clientcrypto.KeyEnvelope, error) <span class="cov4" title="2">{
         request := gophkeeperv1.RegisterRequest_builder{
                 Login: &amp;login, Password: &amp;password,
                 EncryptedDataKey: envelope.EncryptedDataKey, KeySalt: envelope.Salt, KeyNonce: envelope.Nonce,
                 KeyDerivationVersion: &amp;envelope.KeyDerivationVersion,
         }.Build()
         response, err := client.auth.Register(ctx, request)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
                 return "", time.Time{}, clientcrypto.KeyEnvelope{}, fmt.Errorf("register account: %w", err)
         }</span>
         <span class="cov1" title="1">token, expiresAt, err := sessionResult(response.GetSession())
@@ -3686,10 +3686,10 @@ func (client *Client) Register(ctx context.Context, login, password string, enve
 }
 
 // Login authenticates an account and returns its encrypted key envelope.
-func (client *Client) Login(ctx context.Context, login, password string) (string, time.Time, clientcrypto.KeyEnvelope, error) <span class="cov1" title="1">{
+func (client *Client) Login(ctx context.Context, login, password string) (string, time.Time, clientcrypto.KeyEnvelope, error) <span class="cov4" title="2">{
         request := gophkeeperv1.LoginRequest_builder{Login: &amp;login, Password: &amp;password}.Build()
         response, err := client.auth.Login(ctx, request)
-        if err != nil </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
                 return "", time.Time{}, clientcrypto.KeyEnvelope{}, fmt.Errorf("login: %w", err)
         }</span>
         <span class="cov1" title="1">envelope := clientcrypto.KeyEnvelope{EncryptedDataKey: append([]byte(nil), response.GetEncryptedDataKey()...), Salt: append([]byte(nil), response.GetKeySalt()...), Nonce: append([]byte(nil), response.GetKeyNonce()...), KeyDerivationVersion: response.GetKeyDerivationVersion()}
@@ -3700,23 +3700,23 @@ func (client *Client) Login(ctx context.Context, login, password string) (string
         <span class="cov1" title="1">return token, expiresAt, envelope, nil</span>
 }
 
-func sessionResult(session *gophkeeperv1.Session) (string, time.Time, error) <span class="cov10" title="2">{
-        if session == nil || session.GetToken() == "" || session.GetExpiresAt() == nil </span><span class="cov0" title="0">{
+func sessionResult(session *gophkeeperv1.Session) (string, time.Time, error) <span class="cov10" title="7">{
+        if session == nil || session.GetToken() == "" || session.GetExpiresAt() == nil </span><span class="cov6" title="3">{
                 return "", time.Time{}, errors.New("server returned an incomplete session")
         }</span>
-        <span class="cov10" title="2">if err := session.GetExpiresAt().CheckValid(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov7" title="4">if err := session.GetExpiresAt().CheckValid(); err != nil </span><span class="cov1" title="1">{
                 return "", time.Time{}, fmt.Errorf("invalid session expiration: %w", err)
         }</span>
-        <span class="cov10" title="2">return session.GetToken(), session.GetExpiresAt().AsTime().UTC(), nil</span>
+        <span class="cov6" title="3">return session.GetToken(), session.GetExpiresAt().AsTime().UTC(), nil</span>
 }
 
 // Logout revokes a bearer session.
-func (client *Client) Logout(ctx context.Context, token string) error <span class="cov1" title="1">{
-        if token == "" </span><span class="cov0" title="0">{
+func (client *Client) Logout(ctx context.Context, token string) error <span class="cov6" title="3">{
+        if token == "" </span><span class="cov1" title="1">{
                 return errors.New("session token is required")
         }</span>
-        <span class="cov1" title="1">ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
-        if _, err := client.auth.Logout(ctx, gophkeeperv1.LogoutRequest_builder{}.Build()); err != nil </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">ctx = metadata.AppendToOutgoingContext(ctx, "authorization", "Bearer "+token)
+        if _, err := client.auth.Logout(ctx, gophkeeperv1.LogoutRequest_builder{}.Build()); err != nil </span><span class="cov1" title="1">{
                 return fmt.Errorf("logout: %w", err)
         }</span>
         <span class="cov1" title="1">return nil</span>

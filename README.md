@@ -608,3 +608,7 @@ go run .\cmd\client login -server localhost:3200 -tls-ca certificates\dev\ca.pem
 ```
 
 The generated CA private key and server private key are development artifacts and are ignored by Git. Do not use them in production.
+
+## Additional transport verification
+
+The client transport tests cover plaintext and custom-CA credential setup, malformed session responses, connection cleanup, and wrapped authentication RPC failures. Server entry-point tests explicitly isolate TLS-related environment variables so local development settings cannot affect the test result.
