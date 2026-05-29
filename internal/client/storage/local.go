@@ -586,6 +586,17 @@ func (database *LocalDatabase) ApplyRemotePage(ctx context.Context, records []Lo
 			return 0, fmt.Errorf("inspect local record %s before sync: %w", record.ID, err)
 		default:
 			status := SyncStatus(statusText)
+			if status == SyncStatusConflict {
+				// Never overwrite the user's preserved local version while a
+				// conflict is unresolved. A newer server revision only refreshes
+				// the separately stored remote side of the conflict.
+				if record.Revision >= localRevision {
+					if err := saveConflictRecordTx(ctx, tx, record); err != nil {
+						return 0, err
+					}
+				}
+				continue
+			}
 			if status != SyncStatusSynced && record.Revision > localRevision {
 				if err := saveConflictRecordTx(ctx, tx, record); err != nil {
 					return 0, err

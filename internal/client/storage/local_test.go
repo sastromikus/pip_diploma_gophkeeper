@@ -404,3 +404,69 @@ func TestResolveConflictKeepsServerVersion(t *testing.T) {
 		t.Fatalf("resolved server = %#v", resolved)
 	}
 }
+
+func TestSaveConflictNormalizesLocallyCreatedRecord(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	ctx := context.Background()
+
+	local := testLocalRecord(t, SyncStatusCreated)
+	local.Version = 0
+	local.Revision = 0
+	if err := database.Save(ctx, local); err != nil {
+		t.Fatalf("Save() local error = %v", err)
+	}
+	remote := testLocalRecord(t, SyncStatusSynced)
+	remote.ID = local.ID
+	remote.Data.EncryptedPayload = bytes.Repeat([]byte{8}, clientcrypto.AEADTagSize)
+	remote.Version = 3
+	remote.Revision = 7
+	remote.UpdatedAt = remote.UpdatedAt.Add(time.Second)
+
+	if err := database.SaveConflict(ctx, local, remote); err != nil {
+		t.Fatalf("SaveConflict() error = %v", err)
+	}
+	conflict, err := database.GetConflict(ctx, local.ID)
+	if err != nil {
+		t.Fatalf("GetConflict() error = %v", err)
+	}
+	if conflict.Local.SyncStatus != SyncStatusConflict || conflict.Local.Version != remote.Version || conflict.Local.Revision != remote.Revision {
+		t.Fatalf("normalized local conflict = %#v", conflict.Local)
+	}
+	if !bytes.Equal(conflict.Local.Data.EncryptedPayload, local.Data.EncryptedPayload) {
+		t.Fatal("SaveConflict() did not preserve local ciphertext")
+	}
+}
+
+func TestApplyRemotePageDoesNotOverwriteExistingConflict(t *testing.T) {
+	database := openTestLocalDatabase(t)
+	ctx := context.Background()
+
+	local := testLocalRecord(t, SyncStatusUpdated)
+	if err := database.Save(ctx, local); err != nil {
+		t.Fatalf("Save() local error = %v", err)
+	}
+	remote := local
+	remote.Data.EncryptedPayload = bytes.Repeat([]byte{6}, clientcrypto.AEADTagSize)
+	remote.Version++
+	remote.Revision++
+	remote.UpdatedAt = remote.UpdatedAt.Add(time.Second)
+	remote.SyncStatus = SyncStatusSynced
+	if err := database.SaveConflict(ctx, local, remote); err != nil {
+		t.Fatalf("SaveConflict() error = %v", err)
+	}
+
+	conflicts, err := database.ApplyRemotePage(ctx, []LocalRecord{remote}, remote.Revision)
+	if err != nil {
+		t.Fatalf("ApplyRemotePage() error = %v", err)
+	}
+	if conflicts != 0 {
+		t.Fatalf("ApplyRemotePage() conflicts = %d, want 0 for existing conflict", conflicts)
+	}
+	stored, err := database.Get(ctx, local.ID)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	if stored.SyncStatus != SyncStatusConflict || !bytes.Equal(stored.Data.EncryptedPayload, local.Data.EncryptedPayload) {
+		t.Fatalf("existing local conflict was overwritten: %#v", stored)
+	}
+}

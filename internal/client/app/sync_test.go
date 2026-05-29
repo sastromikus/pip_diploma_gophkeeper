@@ -12,14 +12,23 @@ import (
 )
 
 type syncAPIFake struct {
-	created int
-	pages   []clienttransport.SyncPage
+	created   int
+	createErr error
+	getRecord clienttransport.RemoteRecord
+	getErr    error
+	pages     []clienttransport.SyncPage
 }
 
 func (fake *syncAPIFake) CreateRecord(_ context.Context, _ string, id model.ID, data clientcrypto.EncryptedRecordData) (clienttransport.RemoteRecord, error) {
 	fake.created++
+	if fake.createErr != nil {
+		return clienttransport.RemoteRecord{}, fake.createErr
+	}
 	now := time.Now().UTC()
 	return clienttransport.RemoteRecord{ID: id, Data: data, Version: 1, Revision: 2, CreatedAt: now, UpdatedAt: now}, nil
+}
+func (fake *syncAPIFake) GetRecord(context.Context, string, model.ID) (clienttransport.RemoteRecord, error) {
+	return fake.getRecord, fake.getErr
 }
 func (fake *syncAPIFake) UpdateRecord(context.Context, string, model.ID, int64, clientcrypto.EncryptedRecordData) (clienttransport.RemoteRecord, error) {
 	panic("unexpected UpdateRecord")
@@ -34,10 +43,12 @@ func (fake *syncAPIFake) SyncRecords(context.Context, string, int64, uint32) (cl
 }
 
 type syncStoreFake struct {
-	pending  []storage.LocalRecord
-	saved    []storage.LocalRecord
-	revision int64
-	applied  []storage.LocalRecord
+	pending        []storage.LocalRecord
+	saved          []storage.LocalRecord
+	conflictLocal  storage.LocalRecord
+	conflictRemote storage.LocalRecord
+	revision       int64
+	applied        []storage.LocalRecord
 }
 
 func (fake *syncStoreFake) ListPending(context.Context) ([]storage.LocalRecord, error) {
@@ -45,6 +56,11 @@ func (fake *syncStoreFake) ListPending(context.Context) ([]storage.LocalRecord, 
 }
 func (fake *syncStoreFake) Save(_ context.Context, record storage.LocalRecord) error {
 	fake.saved = append(fake.saved, record)
+	return nil
+}
+func (fake *syncStoreFake) SaveConflict(_ context.Context, local, remote storage.LocalRecord) error {
+	fake.conflictLocal = local
+	fake.conflictRemote = remote
 	return nil
 }
 func (fake *syncStoreFake) LastRevision(context.Context) (int64, error) { return fake.revision, nil }
@@ -80,4 +96,55 @@ func TestSyncServiceUploadsAndDownloads(t *testing.T) {
 	if len(local.applied) != 1 || local.applied[0].ID != remoteID {
 		t.Fatalf("applied = %#v", local.applied)
 	}
+}
+
+func TestSyncServiceReconcilesAlreadyAppliedCreate(t *testing.T) {
+	id, _ := model.ParseID("323e4567-e89b-42d3-a456-426614174000")
+	now := time.Now().UTC()
+	data := clientcrypto.EncryptedRecordData{Type: model.RecordTypeText, EncryptionVersion: 1, EncryptedPayload: make([]byte, clientcrypto.AEADTagSize), EncryptedMetadata: make([]byte, clientcrypto.AEADTagSize), PayloadNonce: make([]byte, clientcrypto.NonceSize), MetadataNonce: make([]byte, clientcrypto.NonceSize)}
+	pending := storage.LocalRecord{ID: id, Data: data, CreatedAt: now, UpdatedAt: now, SyncStatus: storage.SyncStatusCreated}
+	remote := clienttransport.RemoteRecord{ID: id, Data: data, Version: 1, Revision: 4, CreatedAt: now, UpdatedAt: now}
+	api := &syncAPIFake{createErr: model.ErrAlreadyExists, getRecord: remote, pages: []clienttransport.SyncPage{{NextRevision: 4}}}
+	local := &syncStoreFake{pending: []storage.LocalRecord{pending}}
+	service, err := NewSyncService(api, &sessionStoreFake{state: testSessionState()}, local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := service.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if report.Uploaded != 1 || report.Conflicts != 0 || len(local.saved) != 1 || local.saved[0].SyncStatus != storage.SyncStatusSynced {
+		t.Fatalf("unexpected reconciliation: report=%#v saved=%#v", report, local.saved)
+	}
+}
+
+func TestSyncServicePreservesImmediateUploadConflict(t *testing.T) {
+	id, _ := model.ParseID("423e4567-e89b-42d3-a456-426614174000")
+	now := time.Now().UTC()
+	localData := clientcrypto.EncryptedRecordData{Type: model.RecordTypeText, EncryptionVersion: 1, EncryptedPayload: make([]byte, clientcrypto.AEADTagSize), EncryptedMetadata: make([]byte, clientcrypto.AEADTagSize), PayloadNonce: make([]byte, clientcrypto.NonceSize), MetadataNonce: make([]byte, clientcrypto.NonceSize)}
+	remoteData := localData
+	remoteData.EncryptedPayload = append([]byte(nil), localData.EncryptedPayload...)
+	remoteData.EncryptedPayload[0] = 1
+	pending := storage.LocalRecord{ID: id, Data: localData, Version: 1, Revision: 1, CreatedAt: now, UpdatedAt: now, SyncStatus: storage.SyncStatusUpdated}
+	remote := clienttransport.RemoteRecord{ID: id, Data: remoteData, Version: 2, Revision: 5, CreatedAt: now, UpdatedAt: now.Add(time.Second)}
+	api := &syncAPIFake{getRecord: remote, pages: []clienttransport.SyncPage{{NextRevision: 5}}}
+	local := &syncStoreFake{pending: []storage.LocalRecord{pending}}
+	service, err := NewSyncService(&syncConflictAPI{syncAPIFake: api}, &sessionStoreFake{state: testSessionState()}, local)
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := service.Sync(context.Background())
+	if err != nil {
+		t.Fatalf("Sync() error = %v", err)
+	}
+	if report.Conflicts != 1 || local.conflictLocal.ID != id || local.conflictRemote.Version != 2 {
+		t.Fatalf("unexpected conflict preservation: report=%#v local=%#v remote=%#v", report, local.conflictLocal, local.conflictRemote)
+	}
+}
+
+type syncConflictAPI struct{ *syncAPIFake }
+
+func (api *syncConflictAPI) UpdateRecord(context.Context, string, model.ID, int64, clientcrypto.EncryptedRecordData) (clienttransport.RemoteRecord, error) {
+	return clienttransport.RemoteRecord{}, model.ErrVersionConflict
 }

@@ -130,6 +130,11 @@ func TestRepositoriesIntegration(t *testing.T) {
 		t.Fatalf("RecordRepository.List() = %+v, %v", listed, err)
 	}
 
+	record.Type = model.RecordTypeText
+	if _, err := records.Update(ctx, record, createdRecord.Version); !errors.Is(err, model.ErrInvalidInput) {
+		t.Fatalf("type-changing Update() error = %v, want ErrInvalidInput", err)
+	}
+	record.Type = model.RecordTypeCredentials
 	record.EncryptedPayload = []byte("updated-ciphertext")
 	updatedRecord, err := records.Update(ctx, record, createdRecord.Version)
 	if err != nil {

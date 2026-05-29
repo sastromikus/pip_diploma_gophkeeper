@@ -145,12 +145,13 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
 
 	var currentVersion int64
 	var deleted bool
+	var currentType model.RecordType
 	err = tx.QueryRow(ctx, `
-        SELECT version, deleted_at IS NOT NULL
+        SELECT version, deleted_at IS NOT NULL, type
         FROM records
         WHERE id = $1 AND user_id = $2
         FOR UPDATE
-    `, record.ID.String(), record.UserID.String()).Scan(&currentVersion, &deleted)
+    `, record.ID.String(), record.UserID.String()).Scan(&currentVersion, &deleted, &currentType)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Record{}, model.ErrNotFound
@@ -162,6 +163,9 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
 	}
 	if currentVersion != expectedVersion {
 		return model.Record{}, model.ErrVersionConflict
+	}
+	if currentType != record.Type {
+		return model.Record{}, fmt.Errorf("%w: changing record type is not supported", model.ErrInvalidInput)
 	}
 
 	updated, err := scanRecord(tx.QueryRow(ctx, `
@@ -191,31 +195,45 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
 }
 
 // Delete replaces an active record with a minimal tombstone.
-func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID model.ID, expectedVersion int64) (model.Record, error) {
+func (repository *RecordRepository) Delete(
+	ctx context.Context,
+	userID, recordID model.ID,
+	expectedVersion int64,
+) (model.Record, error) {
 	if expectedVersion < 1 {
-		return model.Record{}, fmt.Errorf("%w: expected version must be positive", model.ErrInvalidInput)
+		return model.Record{}, fmt.Errorf(
+			"%w: expected version must be positive",
+			model.ErrInvalidInput,
+		)
 	}
 
 	tx, err := repository.pool.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return model.Record{}, fmt.Errorf("begin record deletion: %w", err)
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func() {
+		_ = tx.Rollback(ctx)
+	}()
 
 	var currentVersion int64
 	var deleted bool
+
 	err = tx.QueryRow(ctx, `
-        SELECT version, deleted_at IS NOT NULL
-        FROM records
-        WHERE id = $1 AND user_id = $2
-        FOR UPDATE
-    `, recordID.String(), userID.String()).Scan(&currentVersion, &deleted)
+		SELECT version, deleted_at IS NOT NULL
+		FROM records
+		WHERE id = $1 AND user_id = $2
+		FOR UPDATE
+	`, recordID.String(), userID.String()).Scan(
+		&currentVersion,
+		&deleted,
+	)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return model.Record{}, model.ErrNotFound
 		}
 		return model.Record{}, fmt.Errorf("lock record for deletion: %w", err)
 	}
+
 	if deleted {
 		return model.Record{}, model.ErrNotFound
 	}
@@ -224,24 +242,27 @@ func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID
 	}
 
 	tombstone, err := scanRecord(tx.QueryRow(ctx, `
-        UPDATE records
-        SET encrypted_payload = NULL,
-            encrypted_metadata = NULL,
-            payload_nonce = NULL,
-            metadata_nonce = NULL,
-            version = version + 1,
-            revision = nextval('gophkeeper_records_revision_seq'),
-            updated_at = NOW(),
-            deleted_at = NOW()
-        WHERE id = $1 AND user_id = $2
-        RETURNING `+recordColumns,
-		recordID.String(), userID.String(),
+		UPDATE records
+		SET encrypted_payload = NULL,
+			encrypted_metadata = NULL,
+			payload_nonce = NULL,
+			metadata_nonce = NULL,
+			version = version + 1,
+			revision = nextval('gophkeeper_records_revision_seq'),
+			updated_at = NOW(),
+			deleted_at = NOW()
+		WHERE id = $1 AND user_id = $2
+		RETURNING `+recordColumns,
+		recordID.String(),
+		userID.String(),
 	))
 	if err != nil {
 		return model.Record{}, fmt.Errorf("delete record: %w", err)
 	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return model.Record{}, fmt.Errorf("commit record deletion: %w", err)
 	}
+
 	return tombstone, nil
 }

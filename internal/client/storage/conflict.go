@@ -26,6 +26,63 @@ type RecordConflict struct {
 	Remote LocalRecord
 }
 
+// SaveConflict atomically preserves the local pending version together with
+// the current server version and marks the local record as conflicted.
+func (database *LocalDatabase) SaveConflict(ctx context.Context, local, remote LocalRecord) error {
+	if err := database.usable(ctx); err != nil {
+		return err
+	}
+	if local.ID.IsZero() || remote.ID.IsZero() || local.ID != remote.ID {
+		return fmt.Errorf("%w: conflict records must have the same non-zero ID", model.ErrInvalidInput)
+	}
+	if local.SyncStatus == SyncStatusSynced || local.SyncStatus == SyncStatusConflict {
+		return fmt.Errorf("%w: local conflict source must be pending", model.ErrInvalidInput)
+	}
+	if remote.SyncStatus != SyncStatusSynced {
+		return fmt.Errorf("%w: remote conflict version must be synchronized", model.ErrInvalidInput)
+	}
+	if err := local.Validate(); err != nil {
+		return fmt.Errorf("validate local conflict version: %w", err)
+	}
+	if err := remote.Validate(); err != nil {
+		return fmt.Errorf("validate remote conflict version: %w", err)
+	}
+
+	tx, err := database.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin save conflict: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	// A locally created record has no server metadata. Adopt the current
+	// server metadata so the conflicted row remains valid and can later be
+	// retried with optimistic locking after choosing the local version.
+	local.Version = remote.Version
+	local.Revision = remote.Revision
+	local.CreatedAt = remote.CreatedAt
+	if local.UpdatedAt.Before(remote.UpdatedAt) {
+		local.UpdatedAt = remote.UpdatedAt
+	}
+	if local.DeletedAt != nil && local.DeletedAt.Before(local.UpdatedAt) {
+		deletedAt := local.UpdatedAt
+		local.DeletedAt = &deletedAt
+	}
+	local.SyncStatus = SyncStatusConflict
+	if err := local.Validate(); err != nil {
+		return fmt.Errorf("validate normalized local conflict version: %w", err)
+	}
+	if err := saveLocalRecordTx(ctx, tx, local); err != nil {
+		return fmt.Errorf("save local conflict version: %w", err)
+	}
+	if err := saveConflictRecordTx(ctx, tx, remote); err != nil {
+		return fmt.Errorf("save remote conflict version: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("commit saved conflict: %w", err)
+	}
+	return nil
+}
+
 // ListConflicts returns all unresolved record conflicts ordered by record ID.
 func (database *LocalDatabase) ListConflicts(ctx context.Context) ([]RecordConflict, error) {
 	if err := database.usable(ctx); err != nil {
