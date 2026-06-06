@@ -614,3 +614,18 @@ The generated CA private key and server private key are development artifacts an
 ## Additional transport verification
 
 The client transport tests cover plaintext and custom-CA credential setup, malformed session responses, connection cleanup, and wrapped authentication RPC failures. Server entry-point tests explicitly isolate TLS-related environment variables so local development settings cannot affect the test result.
+
+## Extended integration coverage
+
+The PostgreSQL integration suite covers registration transactions, rollback on
+session conflicts, repository not-found and uniqueness mappings, record
+pagination, optimistic-lock failures, repeated deletion, and server startup and
+graceful shutdown against a real database.
+
+In PowerShell, include the dedicated test database when calculating coverage:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\coverage.ps1 `
+  -Html `
+  -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
+```

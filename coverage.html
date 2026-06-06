@@ -99,7 +99,7 @@
 				
 				<option value="file21">github.com/sastromikus/gophkeeper/internal/model/user.go (70.8%)</option>
 				
-				<option value="file22">github.com/sastromikus/gophkeeper/internal/server/app/app.go (17.4%)</option>
+				<option value="file22">github.com/sastromikus/gophkeeper/internal/server/app/app.go (74.4%)</option>
 				
 				<option value="file23">github.com/sastromikus/gophkeeper/internal/server/auth/id.go (71.4%)</option>
 				
@@ -119,19 +119,19 @@
 				
 				<option value="file31">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/database.go (62.5%)</option>
 				
-				<option value="file32">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/errors.go (0.0%)</option>
+				<option value="file32">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/errors.go (80.0%)</option>
 				
 				<option value="file33">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/migrate.go (70.6%)</option>
 				
-				<option value="file34">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/record_repository.go (66.7%)</option>
+				<option value="file34">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/record_repository.go (81.2%)</option>
 				
-				<option value="file35">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/registration_repository.go (0.0%)</option>
+				<option value="file35">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/registration_repository.go (76.0%)</option>
 				
-				<option value="file36">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/scan.go (77.8%)</option>
+				<option value="file36">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/scan.go (86.1%)</option>
 				
-				<option value="file37">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/session_repository.go (57.1%)</option>
+				<option value="file37">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/session_repository.go (81.0%)</option>
 				
-				<option value="file38">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/user_repository.go (52.4%)</option>
+				<option value="file38">github.com/sastromikus/gophkeeper/internal/server/storage/postgres/user_repository.go (81.0%)</option>
 				
 				<option value="file39">github.com/sastromikus/gophkeeper/internal/server/transport/grpcserver/auth.go (73.0%)</option>
 				
@@ -4371,47 +4371,47 @@ import (
 
 // Run assembles the server, listens for gRPC requests, and blocks until the
 // context is cancelled or the server exits unexpectedly.
-func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <span class="cov10" title="2">{
+func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <span class="cov10" title="3">{
         if ctx == nil </span><span class="cov1" title="1">{
                 return errors.New("server context is required")
         }</span>
-        <span class="cov1" title="1">if logger == nil </span><span class="cov1" title="1">{
+        <span class="cov6" title="2">if logger == nil </span><span class="cov1" title="1">{
                 logger = slog.Default()
         }</span>
-        <span class="cov1" title="1">if err := cfg.Validate(); err != nil </span><span class="cov1" title="1">{
+        <span class="cov6" title="2">if err := cfg.Validate(); err != nil </span><span class="cov1" title="1">{
                 return fmt.Errorf("validate server configuration: %w", err)
         }</span>
 
-        <span class="cov0" title="0">if err := postgres.Migrate(ctx, cfg.DatabaseDSN); err != nil </span><span class="cov0" title="0">{
+        <span class="cov1" title="1">if err := postgres.Migrate(ctx, cfg.DatabaseDSN); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("migrate database: %w", err)
         }</span>
-        <span class="cov0" title="0">database, err := postgres.Open(ctx, cfg.DatabaseDSN)
+        <span class="cov1" title="1">database, err := postgres.Open(ctx, cfg.DatabaseDSN)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("open database: %w", err)
         }</span>
-        <span class="cov0" title="0">defer database.Close()
+        <span class="cov1" title="1">defer database.Close()
 
         grpcServer, err := buildGRPCServer(cfg, database, logger)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
 
-        <span class="cov0" title="0">listener, err := net.Listen("tcp", cfg.Address)
+        <span class="cov1" title="1">listener, err := net.Listen("tcp", cfg.Address)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("listen on %s: %w", cfg.Address, err)
         }</span>
-        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{
+        <span class="cov1" title="1">defer func() </span><span class="cov1" title="1">{
                 if closeErr := listener.Close(); closeErr != nil &amp;&amp; !errors.Is(closeErr, net.ErrClosed) </span><span class="cov0" title="0">{
                         logger.Warn("close gRPC listener", "error", closeErr)
                 }</span>
         }()
 
-        <span class="cov0" title="0">serveErr := make(chan error, 1)
-        go func() </span><span class="cov0" title="0">{
+        <span class="cov1" title="1">serveErr := make(chan error, 1)
+        go func() </span><span class="cov1" title="1">{
                 serveErr &lt;- grpcServer.Serve(listener)
         }</span>()
 
-        <span class="cov0" title="0">logger.Info("GophKeeper gRPC server started", "address", cfg.Address, "tls", !cfg.Insecure)
+        <span class="cov1" title="1">logger.Info("GophKeeper gRPC server started", "address", cfg.Address, "tls", !cfg.Insecure)
 
         select </span>{
         case err := &lt;-serveErr:<span class="cov0" title="0">
@@ -4419,41 +4419,41 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <spa
                         return nil
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("serve gRPC: %w", err)</span>
-        case &lt;-ctx.Done():<span class="cov0" title="0"></span>
+        case &lt;-ctx.Done():<span class="cov1" title="1"></span>
         }
 
-        <span class="cov0" title="0">shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+        <span class="cov1" title="1">shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
         defer cancel()
 
         stopped := make(chan struct{})
-        go func() </span><span class="cov0" title="0">{
+        go func() </span><span class="cov1" title="1">{
                 grpcServer.GracefulStop()
                 close(stopped)
         }</span>()
 
-        <span class="cov0" title="0">select </span>{
-        case &lt;-stopped:<span class="cov0" title="0"></span>
+        <span class="cov1" title="1">select </span>{
+        case &lt;-stopped:<span class="cov1" title="1"></span>
         case &lt;-shutdownCtx.Done():<span class="cov0" title="0">
                 logger.Warn("gRPC graceful shutdown timed out", "timeout", cfg.ShutdownTimeout)
                 grpcServer.Stop()
                 &lt;-stopped</span>
         }
 
-        <span class="cov0" title="0">err = &lt;-serveErr
+        <span class="cov1" title="1">err = &lt;-serveErr
         if err != nil &amp;&amp; !errors.Is(err, grpc.ErrServerStopped) </span><span class="cov0" title="0">{
                 return fmt.Errorf("serve gRPC during shutdown: %w", err)
         }</span>
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov1" title="1">return nil</span>
 }
 
-func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slog.Logger) (*grpc.Server, error) <span class="cov1" title="1">{
+func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slog.Logger) (*grpc.Server, error) <span class="cov6" title="2">{
         if logger == nil </span><span class="cov1" title="1">{
                 logger = slog.Default()
         }</span>
-        <span class="cov1" title="1">if database == nil || database.Pool() == nil </span><span class="cov1" title="1">{
+        <span class="cov6" title="2">if database == nil || database.Pool() == nil </span><span class="cov1" title="1">{
                 return nil, errors.New("database pool is required")
         }</span>
-        <span class="cov0" title="0">registrationRepository := postgres.NewRegistrationRepository(database.Pool())
+        <span class="cov1" title="1">registrationRepository := postgres.NewRegistrationRepository(database.Pool())
         userRepository := postgres.NewUserRepository(database.Pool())
         sessionRepository := postgres.NewSessionRepository(database.Pool())
         recordRepository := postgres.NewRecordRepository(database.Pool())
@@ -4467,11 +4467,11 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create registration service: %w", err)
         }</span>
-        <span class="cov0" title="0">sessionService, err := service.NewSessionService(userRepository, sessionRepository, passwordHasher, tokenGenerator, idGenerator, clock, cfg.SessionTTL)
+        <span class="cov1" title="1">sessionService, err := service.NewSessionService(userRepository, sessionRepository, passwordHasher, tokenGenerator, idGenerator, clock, cfg.SessionTTL)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create session service: %w", err)
         }</span>
-        <span class="cov0" title="0">vaultService, err := service.NewVaultService(recordRepository, model.RecordLimits{
+        <span class="cov1" title="1">vaultService, err := service.NewVaultService(recordRepository, model.RecordLimits{
                 MaxEncryptedPayloadSize:  cfg.MaxEncryptedPayloadSize,
                 MaxEncryptedMetadataSize: cfg.MaxEncryptedMetadataSize,
         })
@@ -4479,16 +4479,16 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
                 return nil, fmt.Errorf("create vault service: %w", err)
         }</span>
 
-        <span class="cov0" title="0">rateLimiter, err := grpcserver.NewAuthRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow, 10000)
+        <span class="cov1" title="1">rateLimiter, err := grpcserver.NewAuthRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow, 10000)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create authentication rate limiter: %w", err)
         }</span>
 
-        <span class="cov0" title="0">maxMessageSize, err := checkedGRPCMessageSize(cfg)
+        <span class="cov1" title="1">maxMessageSize, err := checkedGRPCMessageSize(cfg)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
-        <span class="cov0" title="0">options := []grpc.ServerOption{
+        <span class="cov1" title="1">options := []grpc.ServerOption{
                 grpc.ChainUnaryInterceptor(
                         grpcserver.UnaryRecoveryInterceptor(logger),
                         grpcserver.UnaryRequestIDInterceptor(),
@@ -4511,20 +4511,20 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
                 options = append(options, grpc.Creds(transportCredentials))</span>
         }
 
-        <span class="cov0" title="0">server := grpc.NewServer(options...)
+        <span class="cov1" title="1">server := grpc.NewServer(options...)
         gophkeeperv1.RegisterAuthServiceServer(server, grpcserver.NewAuthServer(authService, sessionService))
         gophkeeperv1.RegisterVaultServiceServer(server, grpcserver.NewVaultServer(vaultService))
         return server, nil</span>
 }
 
-func checkedGRPCMessageSize(cfg config.Config) (int, error) <span class="cov10" title="2">{
+func checkedGRPCMessageSize(cfg config.Config) (int, error) <span class="cov10" title="3">{
         const protocolOverhead = int64(1 &lt;&lt; 20)
         maxInt := int64(^uint(0) &gt;&gt; 1)
         if cfg.MaxEncryptedPayloadSize &gt; maxInt-protocolOverhead ||
                 cfg.MaxEncryptedMetadataSize &gt; maxInt-protocolOverhead-cfg.MaxEncryptedPayloadSize </span><span class="cov1" title="1">{
                 return 0, errors.New("configured gRPC message limit exceeds platform integer range")
         }</span>
-        <span class="cov1" title="1">return int(cfg.MaxEncryptedPayloadSize + cfg.MaxEncryptedMetadataSize + protocolOverhead), nil</span>
+        <span class="cov6" title="2">return int(cfg.MaxEncryptedPayloadSize + cfg.MaxEncryptedMetadataSize + protocolOverhead), nil</span>
 }
 </pre>
 		
@@ -5608,39 +5608,39 @@ type Database struct {
 }
 
 // Open parses the DSN, creates a connection pool, and verifies connectivity.
-func Open(ctx context.Context, dsn string) (*Database, error) <span class="cov1" title="1">{
+func Open(ctx context.Context, dsn string) (*Database, error) <span class="cov4" title="3">{
         config, err := pgxpool.ParseConfig(dsn)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("parse PostgreSQL configuration: %w", err)
         }</span>
 
-        <span class="cov1" title="1">pool, err := pgxpool.NewWithConfig(ctx, config)
+        <span class="cov4" title="3">pool, err := pgxpool.NewWithConfig(ctx, config)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create PostgreSQL pool: %w", err)
         }</span>
 
-        <span class="cov1" title="1">if err := pool.Ping(ctx); err != nil </span><span class="cov0" title="0">{
+        <span class="cov4" title="3">if err := pool.Ping(ctx); err != nil </span><span class="cov0" title="0">{
                 pool.Close()
                 return nil, fmt.Errorf("ping PostgreSQL: %w", err)
         }</span>
 
-        <span class="cov1" title="1">return &amp;Database{pool: pool}, nil</span>
+        <span class="cov4" title="3">return &amp;Database{pool: pool}, nil</span>
 }
 
 // Close releases all PostgreSQL connections.
-func (db *Database) Close() <span class="cov1" title="1">{
+func (db *Database) Close() <span class="cov4" title="3">{
         if db == nil || db.pool == nil </span><span class="cov0" title="0">{
                 return
         }</span>
-        <span class="cov1" title="1">db.pool.Close()</span>
+        <span class="cov4" title="3">db.pool.Close()</span>
 }
 
 // Pool exposes the pool for constructing repositories in the composition root.
-func (db *Database) Pool() *pgxpool.Pool <span class="cov10" title="6">{
+func (db *Database) Pool() *pgxpool.Pool <span class="cov10" title="18">{
         if db == nil </span><span class="cov0" title="0">{
                 return nil
         }</span>
-        <span class="cov10" title="6">return db.pool</span>
+        <span class="cov10" title="18">return db.pool</span>
 }
 </pre>
 		
@@ -5656,14 +5656,14 @@ import (
 
 const uniqueViolationCode = "23505"
 
-func mapNotFound(err error) error <span class="cov0" title="0">{
-        if errors.Is(err, pgx.ErrNoRows) </span><span class="cov0" title="0">{
+func mapNotFound(err error) error <span class="cov10" title="5">{
+        if errors.Is(err, pgx.ErrNoRows) </span><span class="cov10" title="5">{
                 return model.ErrNotFound
         }</span>
         <span class="cov0" title="0">return err</span>
 }
 
-func isUniqueViolation(err error) bool <span class="cov0" title="0">{
+func isUniqueViolation(err error) bool <span class="cov10" title="5">{
         var pgErr *pgconn.PgError
         return errors.As(err, &amp;pgErr) &amp;&amp; pgErr.Code == uniqueViolationCode
 }</span>
@@ -5690,7 +5690,7 @@ const migrationTableName = "gophkeeper_goose_db_version"
 var migrationMu sync.Mutex
 
 // Migrate applies all embedded PostgreSQL migrations to the configured database.
-func Migrate(ctx context.Context, dsn string) (resultErr error) <span class="cov8" title="1">{
+func Migrate(ctx context.Context, dsn string) (resultErr error) <span class="cov10" title="3">{
         migrationMu.Lock()
         defer migrationMu.Unlock()
 
@@ -5698,25 +5698,25 @@ func Migrate(ctx context.Context, dsn string) (resultErr error) <span class="cov
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("open PostgreSQL for migrations: %w", err)
         }</span>
-        <span class="cov8" title="1">defer func() </span><span class="cov8" title="1">{
+        <span class="cov10" title="3">defer func() </span><span class="cov10" title="3">{
                 if err := db.Close(); err != nil &amp;&amp; resultErr == nil </span><span class="cov0" title="0">{
                         resultErr = fmt.Errorf("close migration database: %w", err)
                 }</span>
         }()
 
-        <span class="cov8" title="1">if err := db.PingContext(ctx); err != nil </span><span class="cov0" title="0">{
+        <span class="cov10" title="3">if err := db.PingContext(ctx); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("ping PostgreSQL for migrations: %w", err)
         }</span>
 
-        <span class="cov8" title="1">goose.SetBaseFS(migrationFiles)
+        <span class="cov10" title="3">goose.SetBaseFS(migrationFiles)
         goose.SetTableName(migrationTableName)
         if err := goose.SetDialect("postgres"); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("configure migration dialect: %w", err)
         }</span>
-        <span class="cov8" title="1">if err := goose.UpContext(ctx, db, "migrations"); err != nil </span><span class="cov0" title="0">{
+        <span class="cov10" title="3">if err := goose.UpContext(ctx, db, "migrations"); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("apply PostgreSQL migrations: %w", err)
         }</span>
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov10" title="3">return nil</span>
 }
 </pre>
 		
@@ -5740,12 +5740,12 @@ type RecordRepository struct {
 }
 
 // NewRecordRepository creates a PostgreSQL record repository.
-func NewRecordRepository(pool *pgxpool.Pool) *RecordRepository <span class="cov1" title="1">{
+func NewRecordRepository(pool *pgxpool.Pool) *RecordRepository <span class="cov4" title="2">{
         return &amp;RecordRepository{pool: pool}
 }</span>
 
 // Create inserts an active record with server-managed version, revision, and timestamps.
-func (repository *RecordRepository) Create(ctx context.Context, record model.Record) (model.Record, error) <span class="cov1" title="1">{
+func (repository *RecordRepository) Create(ctx context.Context, record model.Record) (model.Record, error) <span class="cov8" title="4">{
         created, err := scanRecord(repository.pool.QueryRow(ctx, `
         INSERT INTO records (
             id, user_id, type, encryption_version, encrypted_payload, encrypted_metadata,
@@ -5759,24 +5759,24 @@ func (repository *RecordRepository) Create(ctx context.Context, record model.Rec
                 record.EncryptedPayload, record.EncryptedMetadata,
                 record.PayloadNonce, record.MetadataNonce,
         ))
-        if err != nil </span><span class="cov0" title="0">{
-                if isUniqueViolation(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if isUniqueViolation(err) </span><span class="cov1" title="1">{
                         return model.Record{}, model.ErrAlreadyExists
                 }</span>
                 <span class="cov0" title="0">return model.Record{}, fmt.Errorf("insert record: %w", err)</span>
         }
-        <span class="cov1" title="1">return created, nil</span>
+        <span class="cov7" title="3">return created, nil</span>
 }
 
 // Get returns one active record owned by the supplied user.
-func (repository *RecordRepository) Get(ctx context.Context, userID, recordID model.ID) (model.Record, error) <span class="cov1" title="1">{
+func (repository *RecordRepository) Get(ctx context.Context, userID, recordID model.ID) (model.Record, error) <span class="cov4" title="2">{
         record, err := scanRecord(repository.pool.QueryRow(ctx, `
         SELECT `+recordColumns+`
         FROM records
         WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
     `, recordID.String(), userID.String()))
-        if err != nil </span><span class="cov0" title="0">{
-                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov1" title="1">{
                         return model.Record{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.Record{}, fmt.Errorf("select record: %w", err)</span>
@@ -5785,12 +5785,12 @@ func (repository *RecordRepository) Get(ctx context.Context, userID, recordID mo
 }
 
 // List returns active records ordered by UUID. afterID is an exclusive cursor.
-func (repository *RecordRepository) List(ctx context.Context, userID model.ID, afterID model.ID, limit int32) ([]model.Record, error) <span class="cov1" title="1">{
-        if limit &lt;= 0 </span><span class="cov0" title="0">{
+func (repository *RecordRepository) List(ctx context.Context, userID model.ID, afterID model.ID, limit int32) ([]model.Record, error) <span class="cov7" title="3">{
+        if limit &lt;= 0 </span><span class="cov1" title="1">{
                 return nil, fmt.Errorf("%w: list limit must be positive", model.ErrInvalidInput)
         }</span>
 
-        <span class="cov1" title="1">rows, err := repository.pool.Query(ctx, `
+        <span class="cov4" title="2">rows, err := repository.pool.Query(ctx, `
         SELECT `+recordColumns+`
         FROM records
         WHERE user_id = $1
@@ -5802,28 +5802,28 @@ func (repository *RecordRepository) List(ctx context.Context, userID model.ID, a
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("query active records: %w", err)
         }</span>
-        <span class="cov1" title="1">defer rows.Close()
+        <span class="cov4" title="2">defer rows.Close()
 
         records := make([]model.Record, 0, limit)
-        for rows.Next() </span><span class="cov1" title="1">{
+        for rows.Next() </span><span class="cov4" title="2">{
                 record, scanErr := scanRecord(rows)
                 if scanErr != nil </span><span class="cov0" title="0">{
                         return nil, fmt.Errorf("scan active record: %w", scanErr)
                 }</span>
-                <span class="cov1" title="1">records = append(records, record)</span>
+                <span class="cov4" title="2">records = append(records, record)</span>
         }
-        <span class="cov1" title="1">if err := rows.Err(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if err := rows.Err(); err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("iterate active records: %w", err)
         }</span>
-        <span class="cov1" title="1">return records, nil</span>
+        <span class="cov4" title="2">return records, nil</span>
 }
 
 // ListChangedAfter returns changes ordered by their monotonic server revision.
-func (repository *RecordRepository) ListChangedAfter(ctx context.Context, userID model.ID, afterRevision int64, limit int32) ([]model.Record, error) <span class="cov1" title="1">{
-        if afterRevision &lt; 0 </span><span class="cov0" title="0">{
+func (repository *RecordRepository) ListChangedAfter(ctx context.Context, userID model.ID, afterRevision int64, limit int32) ([]model.Record, error) <span class="cov7" title="3">{
+        if afterRevision &lt; 0 </span><span class="cov1" title="1">{
                 return nil, fmt.Errorf("%w: revision cursor must not be negative", model.ErrInvalidInput)
         }</span>
-        <span class="cov1" title="1">if limit &lt;= 0 </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if limit &lt;= 0 </span><span class="cov1" title="1">{
                 return nil, fmt.Errorf("%w: synchronization limit must be positive", model.ErrInvalidInput)
         }</span>
 
@@ -5854,18 +5854,18 @@ func (repository *RecordRepository) ListChangedAfter(ctx context.Context, userID
 }
 
 // Update replaces encrypted fields when expectedVersion matches the active row.
-func (repository *RecordRepository) Update(ctx context.Context, record model.Record, expectedVersion int64) (model.Record, error) <span class="cov10" title="3">{
-        if expectedVersion &lt; 1 </span><span class="cov0" title="0">{
+func (repository *RecordRepository) Update(ctx context.Context, record model.Record, expectedVersion int64) (model.Record, error) <span class="cov10" title="5">{
+        if expectedVersion &lt; 1 </span><span class="cov1" title="1">{
                 return model.Record{}, fmt.Errorf("%w: expected version must be positive", model.ErrInvalidInput)
         }</span>
 
-        <span class="cov10" title="3">tx, err := repository.pool.BeginTx(ctx, pgx.TxOptions{})
+        <span class="cov8" title="4">tx, err := repository.pool.BeginTx(ctx, pgx.TxOptions{})
         if err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("begin record update: %w", err)
         }</span>
-        <span class="cov10" title="3">defer func() </span><span class="cov10" title="3">{ _ = tx.Rollback(ctx) }</span>()
+        <span class="cov8" title="4">defer func() </span><span class="cov8" title="4">{ _ = tx.Rollback(ctx) }</span>()
 
-        <span class="cov10" title="3">var currentVersion int64
+        <span class="cov8" title="4">var currentVersion int64
         var deleted bool
         var currentType model.RecordType
         err = tx.QueryRow(ctx, `
@@ -5874,19 +5874,19 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
         WHERE id = $1 AND user_id = $2
         FOR UPDATE
     `, record.ID.String(), record.UserID.String()).Scan(&amp;currentVersion, &amp;deleted, &amp;currentType)
-        if err != nil </span><span class="cov0" title="0">{
-                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov1" title="1">{
                         return model.Record{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.Record{}, fmt.Errorf("lock record for update: %w", err)</span>
         }
-        <span class="cov10" title="3">if deleted </span><span class="cov0" title="0">{
+        <span class="cov7" title="3">if deleted </span><span class="cov0" title="0">{
                 return model.Record{}, model.ErrNotFound
         }</span>
-        <span class="cov10" title="3">if currentVersion != expectedVersion </span><span class="cov1" title="1">{
+        <span class="cov7" title="3">if currentVersion != expectedVersion </span><span class="cov1" title="1">{
                 return model.Record{}, model.ErrVersionConflict
         }</span>
-        <span class="cov6" title="2">if currentType != record.Type </span><span class="cov1" title="1">{
+        <span class="cov4" title="2">if currentType != record.Type </span><span class="cov1" title="1">{
                 return model.Record{}, fmt.Errorf("%w: changing record type is not supported", model.ErrInvalidInput)
         }</span>
 
@@ -5917,18 +5917,18 @@ func (repository *RecordRepository) Update(ctx context.Context, record model.Rec
 }
 
 // Delete replaces an active record with a minimal tombstone.
-func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID model.ID, expectedVersion int64) (model.Record, error) <span class="cov1" title="1">{
-        if expectedVersion &lt; 1 </span><span class="cov0" title="0">{
+func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID model.ID, expectedVersion int64) (model.Record, error) <span class="cov10" title="5">{
+        if expectedVersion &lt; 1 </span><span class="cov1" title="1">{
                 return model.Record{}, fmt.Errorf("%w: expected version must be positive", model.ErrInvalidInput)
         }</span>
 
-        <span class="cov1" title="1">tx, err := repository.pool.BeginTx(ctx, pgx.TxOptions{})
+        <span class="cov8" title="4">tx, err := repository.pool.BeginTx(ctx, pgx.TxOptions{})
         if err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("begin record deletion: %w", err)
         }</span>
-        <span class="cov1" title="1">defer func() </span><span class="cov1" title="1">{ _ = tx.Rollback(ctx) }</span>()
+        <span class="cov8" title="4">defer func() </span><span class="cov8" title="4">{ _ = tx.Rollback(ctx) }</span>()
 
-        <span class="cov1" title="1">var currentVersion int64
+        <span class="cov8" title="4">var currentVersion int64
         var deleted bool
         err = tx.QueryRow(ctx, `
         SELECT version, deleted_at IS NOT NULL
@@ -5936,20 +5936,20 @@ func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID
         WHERE id = $1 AND user_id = $2
         FOR UPDATE
     `, recordID.String(), userID.String()).Scan(&amp;currentVersion, &amp;deleted)
-        if err != nil </span><span class="cov0" title="0">{
-                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if errors.Is(err, pgx.ErrNoRows) </span><span class="cov1" title="1">{
                         return model.Record{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.Record{}, fmt.Errorf("lock record for deletion: %w", err)</span>
         }
-        <span class="cov1" title="1">if deleted </span><span class="cov0" title="0">{
+        <span class="cov7" title="3">if deleted </span><span class="cov1" title="1">{
                 return model.Record{}, model.ErrNotFound
         }</span>
-        <span class="cov1" title="1">if currentVersion != expectedVersion </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if currentVersion != expectedVersion </span><span class="cov0" title="0">{
                 return model.Record{}, model.ErrVersionConflict
         }</span>
 
-        <span class="cov1" title="1">tombstone, err := scanRecord(tx.QueryRow(ctx, `
+        <span class="cov4" title="2">tombstone, err := scanRecord(tx.QueryRow(ctx, `
         UPDATE records
         SET encrypted_payload = NULL,
             encrypted_metadata = NULL,
@@ -5966,10 +5966,10 @@ func (repository *RecordRepository) Delete(ctx context.Context, userID, recordID
         if err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("delete record: %w", err)
         }</span>
-        <span class="cov1" title="1">if err := tx.Commit(ctx); err != nil </span><span class="cov0" title="0">{
+        <span class="cov4" title="2">if err := tx.Commit(ctx); err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("commit record deletion: %w", err)
         }</span>
-        <span class="cov1" title="1">return tombstone, nil</span>
+        <span class="cov4" title="2">return tombstone, nil</span>
 }
 </pre>
 		
@@ -5989,29 +5989,29 @@ type RegistrationRepository struct {
 }
 
 // NewRegistrationRepository creates a PostgreSQL registration repository.
-func NewRegistrationRepository(pool *pgxpool.Pool) *RegistrationRepository <span class="cov0" title="0">{
+func NewRegistrationRepository(pool *pgxpool.Pool) *RegistrationRepository <span class="cov1" title="1">{
         return &amp;RegistrationRepository{pool: pool}
 }</span>
 
 // CreateUserAndSession persists registration state in one transaction.
-func (repository *RegistrationRepository) CreateUserAndSession(ctx context.Context, user model.User, session model.Session) error <span class="cov0" title="0">{
+func (repository *RegistrationRepository) CreateUserAndSession(ctx context.Context, user model.User, session model.Session) error <span class="cov10" title="4">{
         if err := user.Validate(); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov0" title="0">if err := session.Validate(); err != nil </span><span class="cov0" title="0">{
+        <span class="cov10" title="4">if err := session.Validate(); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov0" title="0">if session.UserID != user.ID </span><span class="cov0" title="0">{
+        <span class="cov10" title="4">if session.UserID != user.ID </span><span class="cov1" title="1">{
                 return fmt.Errorf("%w: session user does not match registered user", model.ErrInvalidInput)
         }</span>
 
-        <span class="cov0" title="0">tx, err := repository.pool.Begin(ctx)
+        <span class="cov8" title="3">tx, err := repository.pool.Begin(ctx)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("begin registration transaction: %w", err)
         }</span>
-        <span class="cov0" title="0">defer func() </span><span class="cov0" title="0">{ _ = tx.Rollback(ctx) }</span>()
+        <span class="cov8" title="3">defer func() </span><span class="cov8" title="3">{ _ = tx.Rollback(ctx) }</span>()
 
-        <span class="cov0" title="0">_, err = tx.Exec(ctx, `
+        <span class="cov8" title="3">_, err = tx.Exec(ctx, `
         INSERT INTO users (
             id, login, password_hash, encrypted_data_key, key_salt, key_nonce,
             key_derivation_version, created_at
@@ -6020,31 +6020,31 @@ func (repository *RegistrationRepository) CreateUserAndSession(ctx context.Conte
                 user.ID.String(), user.Login, user.PasswordHash, user.EncryptedDataKey,
                 user.KeySalt, user.KeyNonce, user.KeyDerivationVersion, user.CreatedAt,
         )
-        if err != nil </span><span class="cov0" title="0">{
-                if isUniqueViolation(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if isUniqueViolation(err) </span><span class="cov1" title="1">{
                         return model.ErrAlreadyExists
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("insert registered user: %w", err)</span>
         }
 
-        <span class="cov0" title="0">_, err = tx.Exec(ctx, `
+        <span class="cov5" title="2">_, err = tx.Exec(ctx, `
         INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, revoked_at)
         VALUES ($1, $2, $3, $4, $5, $6)
     `,
                 session.ID.String(), session.UserID.String(), session.TokenHash,
                 session.CreatedAt, session.ExpiresAt, session.RevokedAt,
         )
-        if err != nil </span><span class="cov0" title="0">{
-                if isUniqueViolation(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if isUniqueViolation(err) </span><span class="cov1" title="1">{
                         return model.ErrAlreadyExists
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("insert initial session: %w", err)</span>
         }
 
-        <span class="cov0" title="0">if err := tx.Commit(ctx); err != nil </span><span class="cov0" title="0">{
+        <span class="cov1" title="1">if err := tx.Commit(ctx); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("commit registration transaction: %w", err)
         }</span>
-        <span class="cov0" title="0">return nil</span>
+        <span class="cov1" title="1">return nil</span>
 }
 </pre>
 		
@@ -6060,7 +6060,7 @@ type scanner interface {
         Scan(dest ...any) error
 }
 
-func scanUser(row scanner) (model.User, error) <span class="cov4" title="2">{
+func scanUser(row scanner) (model.User, error) <span class="cov7" title="6">{
         var user model.User
         var id string
         if err := row.Scan(
@@ -6072,18 +6072,18 @@ func scanUser(row scanner) (model.User, error) <span class="cov4" title="2">{
                 &amp;user.KeyNonce,
                 &amp;user.KeyDerivationVersion,
                 &amp;user.CreatedAt,
-        ); err != nil </span><span class="cov0" title="0">{
+        ); err != nil </span><span class="cov4" title="3">{
                 return model.User{}, err
         }</span>
-        <span class="cov4" title="2">parsedID, err := model.ParseID(id)
+        <span class="cov4" title="3">parsedID, err := model.ParseID(id)
         if err != nil </span><span class="cov0" title="0">{
                 return model.User{}, fmt.Errorf("parse stored user ID: %w", err)
         }</span>
-        <span class="cov4" title="2">user.ID = parsedID
+        <span class="cov4" title="3">user.ID = parsedID
         return user, nil</span>
 }
 
-func scanSession(row scanner) (model.Session, error) <span class="cov1" title="1">{
+func scanSession(row scanner) (model.Session, error) <span class="cov4" title="3">{
         var session model.Session
         var id, userID string
         if err := row.Scan(
@@ -6093,23 +6093,23 @@ func scanSession(row scanner) (model.Session, error) <span class="cov1" title="1
                 &amp;session.CreatedAt,
                 &amp;session.ExpiresAt,
                 &amp;session.RevokedAt,
-        ); err != nil </span><span class="cov0" title="0">{
+        ); err != nil </span><span class="cov1" title="1">{
                 return model.Session{}, err
         }</span>
-        <span class="cov1" title="1">parsedID, err := model.ParseID(id)
+        <span class="cov3" title="2">parsedID, err := model.ParseID(id)
         if err != nil </span><span class="cov0" title="0">{
                 return model.Session{}, fmt.Errorf("parse stored session ID: %w", err)
         }</span>
-        <span class="cov1" title="1">parsedUserID, err := model.ParseID(userID)
+        <span class="cov3" title="2">parsedUserID, err := model.ParseID(userID)
         if err != nil </span><span class="cov0" title="0">{
                 return model.Session{}, fmt.Errorf("parse stored session user ID: %w", err)
         }</span>
-        <span class="cov1" title="1">session.ID = parsedID
+        <span class="cov3" title="2">session.ID = parsedID
         session.UserID = parsedUserID
         return session, nil</span>
 }
 
-func scanRecord(row scanner) (model.Record, error) <span class="cov10" title="6">{
+func scanRecord(row scanner) (model.Record, error) <span class="cov10" title="12">{
         var record model.Record
         var id, userID, recordType string
         if err := row.Scan(
@@ -6126,18 +6126,18 @@ func scanRecord(row scanner) (model.Record, error) <span class="cov10" title="6"
                 &amp;record.CreatedAt,
                 &amp;record.UpdatedAt,
                 &amp;record.DeletedAt,
-        ); err != nil </span><span class="cov0" title="0">{
+        ); err != nil </span><span class="cov3" title="2">{
                 return model.Record{}, err
         }</span>
-        <span class="cov10" title="6">parsedID, err := model.ParseID(id)
+        <span class="cov9" title="10">parsedID, err := model.ParseID(id)
         if err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("parse stored record ID: %w", err)
         }</span>
-        <span class="cov10" title="6">parsedUserID, err := model.ParseID(userID)
+        <span class="cov9" title="10">parsedUserID, err := model.ParseID(userID)
         if err != nil </span><span class="cov0" title="0">{
                 return model.Record{}, fmt.Errorf("parse stored record user ID: %w", err)
         }</span>
-        <span class="cov10" title="6">record.ID = parsedID
+        <span class="cov9" title="10">record.ID = parsedID
         record.UserID = parsedUserID
         record.Type = model.RecordType(recordType)
         return record, nil</span>
@@ -6164,47 +6164,47 @@ type SessionRepository struct {
 }
 
 // NewSessionRepository creates a PostgreSQL session repository.
-func NewSessionRepository(pool *pgxpool.Pool) *SessionRepository <span class="cov8" title="1">{
+func NewSessionRepository(pool *pgxpool.Pool) *SessionRepository <span class="cov10" title="3">{
         return &amp;SessionRepository{pool: pool}
 }</span>
 
 // Create inserts a new session.
-func (repository *SessionRepository) Create(ctx context.Context, session model.Session) error <span class="cov8" title="1">{
+func (repository *SessionRepository) Create(ctx context.Context, session model.Session) error <span class="cov10" title="3">{
         if err := session.Validate(); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">_, err := repository.pool.Exec(ctx, `
+        <span class="cov10" title="3">_, err := repository.pool.Exec(ctx, `
         INSERT INTO sessions (id, user_id, token_hash, created_at, expires_at, revoked_at)
         VALUES ($1, $2, $3, $4, $5, $6)
     `,
                 session.ID.String(), session.UserID.String(), session.TokenHash,
                 session.CreatedAt, session.ExpiresAt, session.RevokedAt,
         )
-        if err != nil </span><span class="cov0" title="0">{
-                if isUniqueViolation(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if isUniqueViolation(err) </span><span class="cov1" title="1">{
                         return model.ErrAlreadyExists
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("insert session: %w", err)</span>
         }
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov6" title="2">return nil</span>
 }
 
 // GetByTokenHash returns a session matching the stored token hash.
-func (repository *SessionRepository) GetByTokenHash(ctx context.Context, tokenHash []byte) (model.Session, error) <span class="cov8" title="1">{
+func (repository *SessionRepository) GetByTokenHash(ctx context.Context, tokenHash []byte) (model.Session, error) <span class="cov10" title="3">{
         session, err := scanSession(repository.pool.QueryRow(ctx,
                 `SELECT `+sessionColumns+` FROM sessions WHERE token_hash = $1`, tokenHash,
         ))
-        if err != nil </span><span class="cov0" title="0">{
-                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov1" title="1">{
                         return model.Session{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.Session{}, fmt.Errorf("select session by token hash: %w", err)</span>
         }
-        <span class="cov8" title="1">return session, nil</span>
+        <span class="cov6" title="2">return session, nil</span>
 }
 
 // Revoke marks a session as revoked. It is idempotent for an already revoked session.
-func (repository *SessionRepository) Revoke(ctx context.Context, id model.ID, revokedAt time.Time) error <span class="cov8" title="1">{
+func (repository *SessionRepository) Revoke(ctx context.Context, id model.ID, revokedAt time.Time) error <span class="cov6" title="2">{
         command, err := repository.pool.Exec(ctx, `
         UPDATE sessions
         SET revoked_at = COALESCE(revoked_at, $2)
@@ -6213,10 +6213,10 @@ func (repository *SessionRepository) Revoke(ctx context.Context, id model.ID, re
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("revoke session: %w", err)
         }</span>
-        <span class="cov8" title="1">if command.RowsAffected() == 0 </span><span class="cov0" title="0">{
+        <span class="cov6" title="2">if command.RowsAffected() == 0 </span><span class="cov1" title="1">{
                 return model.ErrNotFound
         }</span>
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov1" title="1">return nil</span>
 }
 </pre>
 		
@@ -6239,16 +6239,16 @@ type UserRepository struct {
 }
 
 // NewUserRepository creates a PostgreSQL user repository.
-func NewUserRepository(pool *pgxpool.Pool) *UserRepository <span class="cov8" title="1">{
+func NewUserRepository(pool *pgxpool.Pool) *UserRepository <span class="cov8" title="3">{
         return &amp;UserRepository{pool: pool}
 }</span>
 
 // Create inserts a user and maps login uniqueness violations to ErrAlreadyExists.
-func (repository *UserRepository) Create(ctx context.Context, user model.User) error <span class="cov8" title="1">{
+func (repository *UserRepository) Create(ctx context.Context, user model.User) error <span class="cov8" title="3">{
         if err := user.Validate(); err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
-        <span class="cov8" title="1">_, err := repository.pool.Exec(ctx, `
+        <span class="cov8" title="3">_, err := repository.pool.Exec(ctx, `
         INSERT INTO users (
             id, login, password_hash, encrypted_data_key, key_salt, key_nonce,
             key_derivation_version, created_at
@@ -6257,41 +6257,41 @@ func (repository *UserRepository) Create(ctx context.Context, user model.User) e
                 user.ID.String(), user.Login, user.PasswordHash, user.EncryptedDataKey,
                 user.KeySalt, user.KeyNonce, user.KeyDerivationVersion, user.CreatedAt,
         )
-        if err != nil </span><span class="cov0" title="0">{
-                if isUniqueViolation(err) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if isUniqueViolation(err) </span><span class="cov1" title="1">{
                         return model.ErrAlreadyExists
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("insert user: %w", err)</span>
         }
-        <span class="cov8" title="1">return nil</span>
+        <span class="cov5" title="2">return nil</span>
 }
 
 // GetByLogin returns a user by exact login.
-func (repository *UserRepository) GetByLogin(ctx context.Context, login string) (model.User, error) <span class="cov8" title="1">{
+func (repository *UserRepository) GetByLogin(ctx context.Context, login string) (model.User, error) <span class="cov5" title="2">{
         user, err := scanUser(repository.pool.QueryRow(ctx,
                 `SELECT `+userColumns+` FROM users WHERE login = $1`, login,
         ))
-        if err != nil </span><span class="cov0" title="0">{
-                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov1" title="1">{
+                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov1" title="1">{
                         return model.User{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.User{}, fmt.Errorf("select user by login: %w", err)</span>
         }
-        <span class="cov8" title="1">return user, nil</span>
+        <span class="cov1" title="1">return user, nil</span>
 }
 
 // GetByID returns a user by identifier.
-func (repository *UserRepository) GetByID(ctx context.Context, id model.ID) (model.User, error) <span class="cov8" title="1">{
+func (repository *UserRepository) GetByID(ctx context.Context, id model.ID) (model.User, error) <span class="cov10" title="4">{
         user, err := scanUser(repository.pool.QueryRow(ctx,
                 `SELECT `+userColumns+` FROM users WHERE id = $1`, id.String(),
         ))
-        if err != nil </span><span class="cov0" title="0">{
-                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov0" title="0">{
+        if err != nil </span><span class="cov5" title="2">{
+                if mapped := mapNotFound(err); errors.Is(mapped, model.ErrNotFound) </span><span class="cov5" title="2">{
                         return model.User{}, model.ErrNotFound
                 }</span>
                 <span class="cov0" title="0">return model.User{}, fmt.Errorf("select user by ID: %w", err)</span>
         }
-        <span class="cov8" title="1">return user, nil</span>
+        <span class="cov5" title="2">return user, nil</span>
 }
 </pre>
 		
