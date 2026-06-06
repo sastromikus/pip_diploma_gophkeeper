@@ -517,11 +517,13 @@ The workflow currently reports coverage but does not fail below 70% while the
 remaining project layers are still being completed. The final project check
 must enable the 70% threshold.
 
-On Windows, calculate handwritten-code coverage with:
+On Windows, calculate handwritten-code coverage with PostgreSQL integration tests included:
 
 ```powershell
-.\scripts\coverage.ps1 -Html
+.\scripts\coverage.ps1 -Html -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
 ```
+
+The script also uses `GOPHKEEPER_TEST_DATABASE_DSN` when it is already set. If neither the parameter nor the environment variable is present, PostgreSQL integration tests are skipped and the reported total is lower than the complete project coverage.
 
 To enforce the final requirement locally:
 

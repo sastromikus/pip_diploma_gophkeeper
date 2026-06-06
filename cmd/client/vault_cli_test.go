@@ -115,3 +115,80 @@ func TestReadMultiline(t *testing.T) {
 		t.Fatalf("value = %q", value)
 	}
 }
+
+func TestReadRecordInputTextCardAndBinary(t *testing.T) {
+	t.Run("text", func(t *testing.T) {
+		input := strings.NewReader("note\nfirst\nsecond\n.\nmetadata\n")
+		payload, metadata, err := readRecordInput(input, bufioForTest(input), &bytes.Buffer{}, model.RecordTypeText)
+		if err != nil {
+			t.Fatal(err)
+		}
+		text, ok := payload.(clientmodel.Text)
+		if !ok || text.Title != "note" || text.Body != "first\nsecond" || metadata.Text != "metadata" {
+			t.Fatalf("payload=%#v metadata=%#v", payload, metadata)
+		}
+	})
+
+	t.Run("card", func(t *testing.T) {
+		input := strings.NewReader("main card\n4111111111111111\nAlice Example\n12/30\n123\npersonal\n")
+		payload, metadata, err := readRecordInput(input, bufioForTest(input), &bytes.Buffer{}, model.RecordTypeBankCard)
+		if err != nil {
+			t.Fatal(err)
+		}
+		card, ok := payload.(clientmodel.BankCard)
+		if !ok || card.Name != "main card" || card.Number != "4111111111111111" || card.CVV != "123" || metadata.Text != "personal" {
+			t.Fatalf("payload=%#v metadata=%#v", payload, metadata)
+		}
+	})
+
+	t.Run("binary", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "sample.bin")
+		if err := os.WriteFile(path, []byte("binary-data"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		input := strings.NewReader(path + "\nbackup\n")
+		payload, metadata, err := readRecordInput(input, bufioForTest(input), &bytes.Buffer{}, model.RecordTypeBinary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		binary, ok := payload.(clientmodel.Binary)
+		if !ok || binary.Filename != "sample.bin" || string(binary.Data) != "binary-data" || metadata.Text != "backup" {
+			t.Fatalf("payload=%#v metadata=%#v", payload, metadata)
+		}
+	})
+}
+
+func TestWriteRecordTextCredentialsAndCard(t *testing.T) {
+	id, _ := model.ParseID(testRecordID)
+	tests := []struct {
+		name    string
+		payload any
+		typeID  model.RecordType
+		want    string
+	}{
+		{name: "credentials", typeID: model.RecordTypeCredentials, payload: clientmodel.Credentials{Name: "mail", Login: "alice", Password: "secret"}, want: "Login: alice"},
+		{name: "text", typeID: model.RecordTypeText, payload: clientmodel.Text{Title: "note", Body: "body"}, want: "body"},
+		{name: "card", typeID: model.RecordTypeBankCard, payload: clientmodel.BankCard{Name: "main", Number: "4111111111111111", Holder: "Alice", ExpiryDate: "12/30", CVV: "123"}, want: "**** 1111"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var output bytes.Buffer
+			view := clientapp.RecordView{ID: id, Type: tt.typeID, Version: 1, Payload: tt.payload, Metadata: clientmodel.Metadata{Text: "metadata"}}
+			if err := writeRecord(&output, view, ""); err != nil {
+				t.Fatal(err)
+			}
+			result := output.String()
+			if !strings.Contains(result, tt.want) || !strings.Contains(result, "metadata") {
+				t.Fatalf("output = %q", result)
+			}
+			if tt.typeID == model.RecordTypeBankCard {
+				if strings.Contains(result, "4111111111111111") {
+					t.Fatalf("card number was not masked: %q", result)
+				}
+				if strings.Contains(result, "CVV:") {
+					t.Fatalf("CVV must not be printed: %q", result)
+				}
+			}
+		})
+	}
+}

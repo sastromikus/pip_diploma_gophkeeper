@@ -326,7 +326,14 @@ func writeRecord(stdout io.Writer, record clientapp.RecordView, outputPath strin
 			}
 		}
 	case clientmodel.BankCard:
-		if _, err := fmt.Fprintf(stdout, "Name: %s\nNumber: %s\nHolder: %s\nExpiry: %s\nCVV: %s\n", payload.Name, payload.Number, payload.Holder, payload.ExpiryDate, payload.CVV); err != nil {
+		if _, err := fmt.Fprintf(
+			stdout,
+			"Name: %s\nNumber: %s\nHolder: %s\nExpiry: %s\n",
+			payload.Name,
+			payload.MaskedNumber(),
+			payload.Holder,
+			payload.ExpiryDate,
+		); err != nil {
 			return fmt.Errorf("write bank card record: %w", err)
 		}
 	default:

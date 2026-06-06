@@ -3,10 +3,18 @@ param(
     [string]$Output = "coverage.out",
     [switch]$Html,
     [switch]$Enforce,
-    [double]$Minimum = 70.0
+    [double]$Minimum = 70.0,
+    [string]$DatabaseDSN = ""
 )
 
 $ErrorActionPreference = "Stop"
+
+if ($DatabaseDSN) {
+    $env:GOPHKEEPER_TEST_DATABASE_DSN = $DatabaseDSN
+}
+if (-not $env:GOPHKEEPER_TEST_DATABASE_DSN) {
+    Write-Warning "GOPHKEEPER_TEST_DATABASE_DSN is not set; PostgreSQL integration tests will be skipped and coverage will be lower."
+}
 
 $module = "github.com/sastromikus/gophkeeper"
 $generatedPackage = "$module/api/gophkeeper/v1"

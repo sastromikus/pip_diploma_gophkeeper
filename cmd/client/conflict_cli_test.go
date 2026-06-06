@@ -49,3 +49,38 @@ func TestParseAndExecuteConflictCommands(t *testing.T) {
 		t.Fatalf("resolution = %q", stub.resolution)
 	}
 }
+
+func TestExecuteConflictCommandListAndResolveLocal(t *testing.T) {
+	stub := &conflictStoreCLIStub{}
+	service, err := clientapp.NewConflictService(stub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	if err := executeConflictCommand(conflictCommand{name: "conflicts"}, service, &output); err != nil {
+		t.Fatal(err)
+	}
+	if output.Len() == 0 {
+		t.Fatal("expected conflict list output")
+	}
+
+	id, _ := model.ParseID("11111111-1111-4111-8111-111111111111")
+	output.Reset()
+	if err := executeConflictCommand(conflictCommand{name: "resolve", id: id, resolution: clientstorage.ConflictResolutionLocal}, service, &output); err != nil {
+		t.Fatal(err)
+	}
+	if stub.resolution != clientstorage.ConflictResolutionLocal {
+		t.Fatalf("resolution = %q", stub.resolution)
+	}
+	if output.Len() == 0 {
+		t.Fatal("expected resolution output")
+	}
+}
+
+func TestParseConflictCommandRejectsInvalidArguments(t *testing.T) {
+	for _, args := range [][]string{nil, {"resolve"}, {"resolve", "bad", "local"}, {"resolve", "11111111-1111-4111-8111-111111111111", "other"}, {"unknown"}} {
+		if _, err := parseConflictCommand(args); err == nil {
+			t.Fatalf("parseConflictCommand(%q) expected error", args)
+		}
+	}
+}

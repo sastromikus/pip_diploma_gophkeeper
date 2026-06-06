@@ -2,6 +2,12 @@
 set -eu
 
 output="${1:-coverage.out}"
+database_dsn="${2:-${GOPHKEEPER_TEST_DATABASE_DSN:-}}"
+if [ -n "$database_dsn" ]; then
+    export GOPHKEEPER_TEST_DATABASE_DSN="$database_dsn"
+else
+    echo "warning: GOPHKEEPER_TEST_DATABASE_DSN is not set; PostgreSQL integration tests will be skipped" >&2
+fi
 module="github.com/sastromikus/gophkeeper"
 generated_package="$module/api/gophkeeper/v1"
 
