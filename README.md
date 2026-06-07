@@ -638,3 +638,37 @@ powershell -ExecutionPolicy Bypass -File .\scripts\coverage.ps1 `
   -Html `
   -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
 ```
+
+
+## Automated two-client end-to-end test
+
+The end-to-end integration test starts a real insecure development gRPC server
+against the dedicated PostgreSQL test database and creates two independent
+clients. Each client uses its own session file and SQLite database. The test
+verifies the complete encrypted workflow:
+
+- account registration on the first client;
+- login on the second client;
+- local encrypted record creation and upload;
+- download and decryption on another client;
+- update propagation back to the first client;
+- tombstone propagation after deletion;
+- session logout;
+- cleanup of the temporary database user.
+
+Run it from PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\e2e.ps1 `
+  -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
+```
+
+Run it on Linux or macOS:
+
+```sh
+./scripts/e2e.sh \
+  "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
+```
+
+The test database must be dedicated to GophKeeper tests. The test uses a unique
+login and removes the created user after the server has stopped.

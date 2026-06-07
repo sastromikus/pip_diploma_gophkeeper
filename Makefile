@@ -1,4 +1,4 @@
-.PHONY: build build-server build-client proto test test-integration coverage coverage-check race fmt vet clean
+.PHONY: build build-server build-client proto test test-integration test-e2e coverage coverage-check race fmt vet clean
 
 BIN_DIR := bin
 SERVER_BIN := $(BIN_DIR)/gophkeeper-server
@@ -36,6 +36,9 @@ test:
 
 test-integration:
 	go test ./internal/server/storage/postgres -run Integration -v
+
+test-e2e:
+	./scripts/e2e.sh "$(GOPHKEEPER_TEST_DATABASE_DSN)"
 
 coverage:
 	./scripts/coverage.sh
