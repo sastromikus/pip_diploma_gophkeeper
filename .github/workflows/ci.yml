@@ -83,9 +83,9 @@ jobs:
       - name: Run race detector
         run: go test -count=1 -race ./...
 
-      - name: Calculate handwritten-code coverage
+      - name: Enforce handwritten-code coverage
         shell: bash
-        run: ./scripts/coverage.sh coverage.out
+        run: ./scripts/coverage.sh coverage.out "$GOPHKEEPER_TEST_DATABASE_DSN" 70
 
       - name: Upload coverage profile
         if: always()

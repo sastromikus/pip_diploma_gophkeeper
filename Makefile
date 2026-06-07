@@ -1,4 +1,4 @@
-.PHONY: build build-server build-client proto test test-integration coverage race fmt vet clean
+.PHONY: build build-server build-client proto test test-integration coverage coverage-check race fmt vet clean
 
 BIN_DIR := bin
 SERVER_BIN := $(BIN_DIR)/gophkeeper-server
@@ -39,6 +39,9 @@ test-integration:
 
 coverage:
 	./scripts/coverage.sh
+
+coverage-check:
+	./scripts/coverage.sh coverage.out "$(GOPHKEEPER_TEST_DATABASE_DSN)" 70
 
 race:
 	go test -race ./...

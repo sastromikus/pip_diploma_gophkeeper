@@ -508,14 +508,12 @@ tool versions. It performs:
 - formatting and `go mod tidy` consistency checks;
 - `go vet`;
 - unit and PostgreSQL integration tests;
-- coverage collection excluding generated protobuf code;
+- coverage collection excluding generated protobuf code with a mandatory 70% threshold;
 - the race detector on Linux;
 - client and server builds for Linux amd64, Windows amd64, and macOS arm64;
 - upload of coverage and binary artifacts.
 
-The workflow currently reports coverage but does not fail below 70% while the
-remaining project layers are still being completed. The final project check
-must enable the 70% threshold.
+The workflow fails when handwritten-code coverage drops below 70%. PostgreSQL integration tests are included in the coverage profile.
 
 On Windows, calculate handwritten-code coverage with PostgreSQL integration tests included:
 
@@ -525,16 +523,27 @@ On Windows, calculate handwritten-code coverage with PostgreSQL integration test
 
 The script also uses `GOPHKEEPER_TEST_DATABASE_DSN` when it is already set. If neither the parameter nor the environment variable is present, PostgreSQL integration tests are skipped and the reported total is lower than the complete project coverage.
 
-To enforce the final requirement locally:
+To enforce the final requirement locally with PostgreSQL integration tests:
 
 ```powershell
-.\scripts\coverage.ps1 -Enforce -Minimum 70
+.\scripts\coverage.ps1 `
+  -Enforce `
+  -Minimum 70 `
+  -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
 ```
 
-On Linux or macOS:
+On Linux or macOS, report coverage:
 
 ```sh
 ./scripts/coverage.sh
+```
+
+Enforce the 70% threshold while including PostgreSQL integration tests:
+
+```sh
+./scripts/coverage.sh coverage.out \
+  "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable" \
+  70
 ```
 
 ## Cryptographic record validation
