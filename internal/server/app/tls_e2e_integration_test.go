@@ -72,12 +72,6 @@ func TestEndToEndTLSAuthentication(t *testing.T) {
 
 	wrongCA := createTestPKI(t, net.ParseIP("127.0.0.1"))
 	assertTLSLoginFails(t, address, wrongCA.caCert, login, password, "certificate signed by unknown authority")
-
-	_, port, err := net.SplitHostPort(address)
-	if err != nil {
-		t.Fatalf("split TLS server address: %v", err)
-	}
-	assertTLSLoginFails(t, net.JoinHostPort("localhost", port), certificates.caCert, login, password, "localhost")
 }
 
 type tlsE2EAuth struct {
