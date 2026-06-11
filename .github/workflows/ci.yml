@@ -51,12 +51,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          archive="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-          curl --fail --location --silent --show-error \
-            "https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${archive}" \
-            --output "/tmp/${archive}"
-          unzip -q "/tmp/${archive}" -d "$HOME/.local"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+          PROTOC_VERSION="35.0"
+          PROTOC_ARCHIVE="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ARCHIVE}"
+
+          curl --fail --location --show-error \
+            --output "${PROTOC_ARCHIVE}" \
+            "${PROTOC_URL}"
+
+          sudo unzip -q "${PROTOC_ARCHIVE}" -d /usr/local
+          protoc --version
 
       - name: Install protobuf generators
         shell: bash
