@@ -19,6 +19,7 @@ jobs:
   quality:
     name: Test, vet, race, and coverage
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     services:
       postgres:
@@ -52,15 +53,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          PROTOC_VERSION="35.0"
-          PROTOC_ARCHIVE="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
-          PROTOC_URL="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${PROTOC_ARCHIVE}"
+          archive="protoc-${PROTOC_VERSION}-linux-x86_64.zip"
+          url="https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VERSION}/${archive}"
 
           curl --fail --location --show-error \
-            --output "${PROTOC_ARCHIVE}" \
-            "${PROTOC_URL}"
+            --retry 3 \
+            --output "${RUNNER_TEMP}/${archive}" \
+            "${url}"
 
-          sudo unzip -q "${PROTOC_ARCHIVE}" -d /usr/local
+          sudo unzip -q -o "${RUNNER_TEMP}/${archive}" -d /usr/local
           protoc --version
 
       - name: Install protobuf generators
@@ -74,7 +75,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          ./scripts/generate-proto.sh
+          bash ./scripts/generate-proto.sh
           gofmt -w .
           go mod tidy
           git diff --exit-code
@@ -84,7 +85,7 @@ jobs:
 
       - name: Run repository security audit
         shell: bash
-        run: ./scripts/audit.sh --strict
+        run: bash ./scripts/audit.sh --strict
 
       - name: Run tests
         run: go test -count=1 ./...
@@ -94,7 +95,7 @@ jobs:
 
       - name: Enforce handwritten-code coverage
         shell: bash
-        run: ./scripts/coverage.sh coverage.out "$GOPHKEEPER_TEST_DATABASE_DSN" 70
+        run: bash ./scripts/coverage.sh coverage.out "$GOPHKEEPER_TEST_DATABASE_DSN" 70
 
       - name: Upload coverage profile
         if: always()
@@ -102,11 +103,12 @@ jobs:
         with:
           name: coverage
           path: coverage.out
-          if-no-files-found: error
+          if-no-files-found: warn
 
   build:
     name: Build ${{ matrix.target }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     needs: quality
     strategy:
       fail-fast: false
