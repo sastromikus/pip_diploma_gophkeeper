@@ -672,3 +672,28 @@ Run it on Linux or macOS:
 
 The test database must be dedicated to GophKeeper tests. The test uses a unique
 login and removes the created user after the server has stopped.
+
+## Automated TLS end-to-end test
+
+The TLS integration test starts a real server with a temporary in-process test
+CA and server certificate. No OpenSSL installation or persistent private key is
+required. It verifies:
+
+- registration, logout, and login over a trusted TLS connection;
+- rejection of a certificate signed by an unknown CA;
+- rejection when the connection hostname does not match the certificate SAN;
+- graceful server shutdown and cleanup of the temporary PostgreSQL user.
+
+PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\e2e-tls.ps1 `
+  -DatabaseDSN "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
+```
+
+Linux/macOS:
+
+```sh
+./scripts/e2e-tls.sh \
+  "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
+```

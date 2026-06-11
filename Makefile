@@ -58,3 +58,8 @@ vet:
 clean:
 	go clean
 	rm -rf $(BIN_DIR)
+
+.PHONY: test-e2e-tls
+test-e2e-tls:
+	@test -n "$(GOPHKEEPER_TEST_DATABASE_DSN)" || (echo "GOPHKEEPER_TEST_DATABASE_DSN is required" >&2; exit 2)
+	GOPHKEEPER_TEST_DATABASE_DSN="$(GOPHKEEPER_TEST_DATABASE_DSN)" go test -count=1 -run '^TestEndToEndTLSAuthentication$$' -v ./internal/server/app
