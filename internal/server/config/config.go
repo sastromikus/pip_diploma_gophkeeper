@@ -41,6 +41,7 @@ type LookupEnv func(string) (string, bool)
 
 // Parse builds server configuration using defaults, command-line flags and
 // environment variables. Environment variables have the highest priority.
+// Parse loads server configuration from defaults, flags, and environment variables.
 func Parse(args []string, lookupEnv LookupEnv) (Config, error) {
 	cfg := Config{
 		Address:                  defaultAddress,

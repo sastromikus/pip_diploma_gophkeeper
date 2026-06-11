@@ -3,47 +3,39 @@
 .env.*
 !.env.example
 
-# Build artifacts and binaries
+# Build output
 /bin/
 /dist/
-/gophkeeper-client
-/gophkeeper-server
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Go test and coverage artifacts
 *.test
+
+# Coverage and profiling
 *.out
 coverage.*
 /coverage/
+*.pprof
 
-# Local databases and SQLite sidecars
+# Local databases and sidecars
 *.db
 *.db-*
 *.sqlite
 *.sqlite3
-*.sqlite-wal
-*.sqlite-shm
+*.sqlite-*
 
-# Runtime files and logs
-*.log
-
-# Private keys and local certificates
+# Secrets, certificates, and logs
 *.key
 *.pem
 /certificates/dev/
+*.log
 
-# Dependencies
+# Dependencies and editor files
 /vendor/
-
-# IDE and editor settings
 /.idea/
 /.vscode/
-
-# Operating system files
 .DS_Store
 Thumbs.db
 Desktop.ini

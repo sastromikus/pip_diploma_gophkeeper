@@ -35,6 +35,7 @@ func UnaryRequestIDInterceptor() grpc.UnaryServerInterceptor {
 
 // UnaryRequestLoggingInterceptor writes one structured completion log entry
 // without serializing request payloads or metadata.
+// UnaryRequestLoggingInterceptor logs safe completion metadata for each unary RPC.
 func UnaryRequestLoggingInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor {
 	if logger == nil {
 		logger = slog.Default()
@@ -92,6 +93,7 @@ type rateWindow struct {
 
 // AuthRateLimiter applies a fixed-window limit to authentication attempts per
 // remote address. Its memory use is bounded by maxEntries.
+// AuthRateLimiter applies a bounded fixed-window limit to authentication attempts.
 type AuthRateLimiter struct {
 	mu         sync.Mutex
 	limit      int

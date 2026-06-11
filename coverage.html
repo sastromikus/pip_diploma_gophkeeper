@@ -99,7 +99,7 @@
 				
 				<option value="file21">github.com/sastromikus/gophkeeper/internal/model/user.go (70.8%)</option>
 				
-				<option value="file22">github.com/sastromikus/gophkeeper/internal/server/app/app.go (74.4%)</option>
+				<option value="file22">github.com/sastromikus/gophkeeper/internal/server/app/app.go (79.1%)</option>
 				
 				<option value="file23">github.com/sastromikus/gophkeeper/internal/server/auth/id.go (71.4%)</option>
 				
@@ -1918,6 +1918,7 @@ type LookupEnv func(string) (string, bool)
 
 // Parse builds client configuration using defaults, command-line flags and
 // environment variables. Environment variables have the highest priority.
+// Parse loads client configuration from defaults, flags, and environment variables.
 func Parse(args []string, lookupEnv LookupEnv, userConfigDir func() (string, error)) (Config, error) <span class="cov6" title="5">{
         baseDir, err := resolveConfigDir(userConfigDir)
         if err != nil </span><span class="cov0" title="0">{
@@ -2052,6 +2053,7 @@ var (
         ErrUnsupportedVersion = errors.New("unsupported cryptographic version")
 )
 
+// KeyEnvelope contains a data-encryption key protected by a password-derived key.
 type KeyEnvelope struct {
         EncryptedDataKey     []byte
         Salt                 []byte
@@ -2059,6 +2061,7 @@ type KeyEnvelope struct {
         KeyDerivationVersion uint32
 }
 
+// EncryptedRecordData contains authenticated ciphertext and nonces for one record.
 type EncryptedRecordData struct {
         Type              domain.RecordType
         EncryptionVersion uint32
@@ -2068,6 +2071,7 @@ type EncryptedRecordData struct {
         MetadataNonce     []byte
 }
 
+// RecordLimits defines plaintext and ciphertext size limits enforced by the client.
 type RecordLimits struct {
         MaxBinarySize            int64
         MaxEncryptedPayloadSize  int64
@@ -2081,8 +2085,10 @@ func (limits RecordLimits) validate() error <span class="cov4" title="13">{
         <span class="cov4" title="13">return nil</span>
 }
 
+// Service performs client-side key wrapping and record encryption.
 type Service struct{ random io.Reader }
 
+// NewService creates a cryptographic service backed by crypto/rand.
 func NewService() *Service <span class="cov4" title="13">{ return &amp;Service{random: cryptorand.Reader} }</span>
 
 func newServiceWithRandom(random io.Reader) (*Service, error) <span class="cov0" title="0">{
@@ -2234,6 +2240,7 @@ func (service *Service) DecryptRecord(dataKey []byte, recordID domain.ID, encryp
         <span class="cov1" title="2">return nil</span>
 }
 
+// Wipe overwrites a byte slice in place on a best-effort basis.
 func Wipe(value []byte) <span class="cov5" title="29">{
         for i := range value </span><span class="cov10" title="858">{
                 value[i] = 0
@@ -4371,47 +4378,48 @@ import (
 
 // Run assembles the server, listens for gRPC requests, and blocks until the
 // context is cancelled or the server exits unexpectedly.
-func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <span class="cov10" title="3">{
+// Run starts the configured gRPC server and blocks until shutdown completes.
+func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <span class="cov10" title="5">{
         if ctx == nil </span><span class="cov1" title="1">{
                 return errors.New("server context is required")
         }</span>
-        <span class="cov6" title="2">if logger == nil </span><span class="cov1" title="1">{
+        <span class="cov8" title="4">if logger == nil </span><span class="cov1" title="1">{
                 logger = slog.Default()
         }</span>
-        <span class="cov6" title="2">if err := cfg.Validate(); err != nil </span><span class="cov1" title="1">{
+        <span class="cov8" title="4">if err := cfg.Validate(); err != nil </span><span class="cov1" title="1">{
                 return fmt.Errorf("validate server configuration: %w", err)
         }</span>
 
-        <span class="cov1" title="1">if err := postgres.Migrate(ctx, cfg.DatabaseDSN); err != nil </span><span class="cov0" title="0">{
+        <span class="cov7" title="3">if err := postgres.Migrate(ctx, cfg.DatabaseDSN); err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("migrate database: %w", err)
         }</span>
-        <span class="cov1" title="1">database, err := postgres.Open(ctx, cfg.DatabaseDSN)
+        <span class="cov7" title="3">database, err := postgres.Open(ctx, cfg.DatabaseDSN)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("open database: %w", err)
         }</span>
-        <span class="cov1" title="1">defer database.Close()
+        <span class="cov7" title="3">defer database.Close()
 
         grpcServer, err := buildGRPCServer(cfg, database, logger)
         if err != nil </span><span class="cov0" title="0">{
                 return err
         }</span>
 
-        <span class="cov1" title="1">listener, err := net.Listen("tcp", cfg.Address)
+        <span class="cov7" title="3">listener, err := net.Listen("tcp", cfg.Address)
         if err != nil </span><span class="cov0" title="0">{
                 return fmt.Errorf("listen on %s: %w", cfg.Address, err)
         }</span>
-        <span class="cov1" title="1">defer func() </span><span class="cov1" title="1">{
+        <span class="cov7" title="3">defer func() </span><span class="cov7" title="3">{
                 if closeErr := listener.Close(); closeErr != nil &amp;&amp; !errors.Is(closeErr, net.ErrClosed) </span><span class="cov0" title="0">{
                         logger.Warn("close gRPC listener", "error", closeErr)
                 }</span>
         }()
 
-        <span class="cov1" title="1">serveErr := make(chan error, 1)
-        go func() </span><span class="cov1" title="1">{
+        <span class="cov7" title="3">serveErr := make(chan error, 1)
+        go func() </span><span class="cov7" title="3">{
                 serveErr &lt;- grpcServer.Serve(listener)
         }</span>()
 
-        <span class="cov1" title="1">logger.Info("GophKeeper gRPC server started", "address", cfg.Address, "tls", !cfg.Insecure)
+        <span class="cov7" title="3">logger.Info("GophKeeper gRPC server started", "address", cfg.Address, "tls", !cfg.Insecure)
 
         select </span>{
         case err := &lt;-serveErr:<span class="cov0" title="0">
@@ -4419,41 +4427,41 @@ func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error <spa
                         return nil
                 }</span>
                 <span class="cov0" title="0">return fmt.Errorf("serve gRPC: %w", err)</span>
-        case &lt;-ctx.Done():<span class="cov1" title="1"></span>
+        case &lt;-ctx.Done():<span class="cov7" title="3"></span>
         }
 
-        <span class="cov1" title="1">shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+        <span class="cov7" title="3">shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
         defer cancel()
 
         stopped := make(chan struct{})
-        go func() </span><span class="cov1" title="1">{
+        go func() </span><span class="cov7" title="3">{
                 grpcServer.GracefulStop()
                 close(stopped)
         }</span>()
 
-        <span class="cov1" title="1">select </span>{
-        case &lt;-stopped:<span class="cov1" title="1"></span>
+        <span class="cov7" title="3">select </span>{
+        case &lt;-stopped:<span class="cov7" title="3"></span>
         case &lt;-shutdownCtx.Done():<span class="cov0" title="0">
                 logger.Warn("gRPC graceful shutdown timed out", "timeout", cfg.ShutdownTimeout)
                 grpcServer.Stop()
                 &lt;-stopped</span>
         }
 
-        <span class="cov1" title="1">err = &lt;-serveErr
+        <span class="cov7" title="3">err = &lt;-serveErr
         if err != nil &amp;&amp; !errors.Is(err, grpc.ErrServerStopped) </span><span class="cov0" title="0">{
                 return fmt.Errorf("serve gRPC during shutdown: %w", err)
         }</span>
-        <span class="cov1" title="1">return nil</span>
+        <span class="cov7" title="3">return nil</span>
 }
 
-func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slog.Logger) (*grpc.Server, error) <span class="cov6" title="2">{
+func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slog.Logger) (*grpc.Server, error) <span class="cov8" title="4">{
         if logger == nil </span><span class="cov1" title="1">{
                 logger = slog.Default()
         }</span>
-        <span class="cov6" title="2">if database == nil || database.Pool() == nil </span><span class="cov1" title="1">{
+        <span class="cov8" title="4">if database == nil || database.Pool() == nil </span><span class="cov1" title="1">{
                 return nil, errors.New("database pool is required")
         }</span>
-        <span class="cov1" title="1">registrationRepository := postgres.NewRegistrationRepository(database.Pool())
+        <span class="cov7" title="3">registrationRepository := postgres.NewRegistrationRepository(database.Pool())
         userRepository := postgres.NewUserRepository(database.Pool())
         sessionRepository := postgres.NewSessionRepository(database.Pool())
         recordRepository := postgres.NewRecordRepository(database.Pool())
@@ -4467,11 +4475,11 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create registration service: %w", err)
         }</span>
-        <span class="cov1" title="1">sessionService, err := service.NewSessionService(userRepository, sessionRepository, passwordHasher, tokenGenerator, idGenerator, clock, cfg.SessionTTL)
+        <span class="cov7" title="3">sessionService, err := service.NewSessionService(userRepository, sessionRepository, passwordHasher, tokenGenerator, idGenerator, clock, cfg.SessionTTL)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create session service: %w", err)
         }</span>
-        <span class="cov1" title="1">vaultService, err := service.NewVaultService(recordRepository, model.RecordLimits{
+        <span class="cov7" title="3">vaultService, err := service.NewVaultService(recordRepository, model.RecordLimits{
                 MaxEncryptedPayloadSize:  cfg.MaxEncryptedPayloadSize,
                 MaxEncryptedMetadataSize: cfg.MaxEncryptedMetadataSize,
         })
@@ -4479,16 +4487,16 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
                 return nil, fmt.Errorf("create vault service: %w", err)
         }</span>
 
-        <span class="cov1" title="1">rateLimiter, err := grpcserver.NewAuthRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow, 10000)
+        <span class="cov7" title="3">rateLimiter, err := grpcserver.NewAuthRateLimiter(cfg.AuthRateLimit, cfg.AuthRateWindow, 10000)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, fmt.Errorf("create authentication rate limiter: %w", err)
         }</span>
 
-        <span class="cov1" title="1">maxMessageSize, err := checkedGRPCMessageSize(cfg)
+        <span class="cov7" title="3">maxMessageSize, err := checkedGRPCMessageSize(cfg)
         if err != nil </span><span class="cov0" title="0">{
                 return nil, err
         }</span>
-        <span class="cov1" title="1">options := []grpc.ServerOption{
+        <span class="cov7" title="3">options := []grpc.ServerOption{
                 grpc.ChainUnaryInterceptor(
                         grpcserver.UnaryRecoveryInterceptor(logger),
                         grpcserver.UnaryRequestIDInterceptor(),
@@ -4499,32 +4507,32 @@ func buildGRPCServer(cfg config.Config, database *postgres.Database, logger *slo
                 grpc.MaxRecvMsgSize(maxMessageSize),
                 grpc.MaxSendMsgSize(maxMessageSize),
         }
-        if !cfg.Insecure </span><span class="cov0" title="0">{
+        if !cfg.Insecure </span><span class="cov1" title="1">{
                 certificate, err := tls.LoadX509KeyPair(cfg.TLSCertFile, cfg.TLSKeyFile)
                 if err != nil </span><span class="cov0" title="0">{
                         return nil, fmt.Errorf("load server TLS certificate: %w", err)
                 }</span>
-                <span class="cov0" title="0">transportCredentials := credentials.NewTLS(&amp;tls.Config{
+                <span class="cov1" title="1">transportCredentials := credentials.NewTLS(&amp;tls.Config{
                         MinVersion:   tls.VersionTLS12,
                         Certificates: []tls.Certificate{certificate},
                 })
                 options = append(options, grpc.Creds(transportCredentials))</span>
         }
 
-        <span class="cov1" title="1">server := grpc.NewServer(options...)
+        <span class="cov7" title="3">server := grpc.NewServer(options...)
         gophkeeperv1.RegisterAuthServiceServer(server, grpcserver.NewAuthServer(authService, sessionService))
         gophkeeperv1.RegisterVaultServiceServer(server, grpcserver.NewVaultServer(vaultService))
         return server, nil</span>
 }
 
-func checkedGRPCMessageSize(cfg config.Config) (int, error) <span class="cov10" title="3">{
+func checkedGRPCMessageSize(cfg config.Config) (int, error) <span class="cov10" title="5">{
         const protocolOverhead = int64(1 &lt;&lt; 20)
         maxInt := int64(^uint(0) &gt;&gt; 1)
         if cfg.MaxEncryptedPayloadSize &gt; maxInt-protocolOverhead ||
                 cfg.MaxEncryptedMetadataSize &gt; maxInt-protocolOverhead-cfg.MaxEncryptedPayloadSize </span><span class="cov1" title="1">{
                 return 0, errors.New("configured gRPC message limit exceeds platform integer range")
         }</span>
-        <span class="cov6" title="2">return int(cfg.MaxEncryptedPayloadSize + cfg.MaxEncryptedMetadataSize + protocolOverhead), nil</span>
+        <span class="cov8" title="4">return int(cfg.MaxEncryptedPayloadSize + cfg.MaxEncryptedMetadataSize + protocolOverhead), nil</span>
 }
 </pre>
 		
@@ -4811,6 +4819,7 @@ type LookupEnv func(string) (string, bool)
 
 // Parse builds server configuration using defaults, command-line flags and
 // environment variables. Environment variables have the highest priority.
+// Parse loads server configuration from defaults, flags, and environment variables.
 func Parse(args []string, lookupEnv LookupEnv) (Config, error) <span class="cov6" title="6">{
         cfg := Config{
                 Address:                  defaultAddress,
@@ -6518,6 +6527,7 @@ func UnaryRequestIDInterceptor() grpc.UnaryServerInterceptor <span class="cov1" 
 
 // UnaryRequestLoggingInterceptor writes one structured completion log entry
 // without serializing request payloads or metadata.
+// UnaryRequestLoggingInterceptor logs safe completion metadata for each unary RPC.
 func UnaryRequestLoggingInterceptor(logger *slog.Logger) grpc.UnaryServerInterceptor <span class="cov1" title="1">{
         if logger == nil </span><span class="cov0" title="0">{
                 logger = slog.Default()
@@ -6575,6 +6585,7 @@ type rateWindow struct {
 
 // AuthRateLimiter applies a fixed-window limit to authentication attempts per
 // remote address. Its memory use is bounded by maxEntries.
+// AuthRateLimiter applies a bounded fixed-window limit to authentication attempts.
 type AuthRateLimiter struct {
         mu         sync.Mutex
         limit      int

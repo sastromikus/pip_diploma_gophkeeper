@@ -697,3 +697,23 @@ Linux/macOS:
 ./scripts/e2e-tls.sh \
   "postgres://postgres:password@127.0.0.1:5432/gophkeeper_test?sslmode=disable"
 ```
+
+## Architecture and security documentation
+
+Additional project documentation:
+
+- `docs/architecture.md` — component boundaries, storage, synchronization, and trust model;
+- `docs/testing.md` — unit, integration, coverage, and end-to-end commands;
+- `SECURITY.md` — vulnerability reporting and operational security requirements.
+
+A lightweight repository audit can be run with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\audit.ps1
+```
+
+or on Linux/macOS:
+
+```sh
+./scripts/audit.sh
+```

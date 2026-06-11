@@ -34,6 +34,7 @@ var (
 	ErrUnsupportedVersion = errors.New("unsupported cryptographic version")
 )
 
+// KeyEnvelope contains a data-encryption key protected by a password-derived key.
 type KeyEnvelope struct {
 	EncryptedDataKey     []byte
 	Salt                 []byte
@@ -41,6 +42,7 @@ type KeyEnvelope struct {
 	KeyDerivationVersion uint32
 }
 
+// EncryptedRecordData contains authenticated ciphertext and nonces for one record.
 type EncryptedRecordData struct {
 	Type              domain.RecordType
 	EncryptionVersion uint32
@@ -50,6 +52,7 @@ type EncryptedRecordData struct {
 	MetadataNonce     []byte
 }
 
+// RecordLimits defines plaintext and ciphertext size limits enforced by the client.
 type RecordLimits struct {
 	MaxBinarySize            int64
 	MaxEncryptedPayloadSize  int64
@@ -63,8 +66,10 @@ func (limits RecordLimits) validate() error {
 	return nil
 }
 
+// Service performs client-side key wrapping and record encryption.
 type Service struct{ random io.Reader }
 
+// NewService creates a cryptographic service backed by crypto/rand.
 func NewService() *Service { return &Service{random: cryptorand.Reader} }
 
 func newServiceWithRandom(random io.Reader) (*Service, error) {
@@ -216,6 +221,7 @@ func (service *Service) DecryptRecord(dataKey []byte, recordID domain.ID, encryp
 	return nil
 }
 
+// Wipe overwrites a byte slice in place on a best-effort basis.
 func Wipe(value []byte) {
 	for i := range value {
 		value[i] = 0

@@ -27,6 +27,7 @@ type LookupEnv func(string) (string, bool)
 
 // Parse builds client configuration using defaults, command-line flags and
 // environment variables. Environment variables have the highest priority.
+// Parse loads client configuration from defaults, flags, and environment variables.
 func Parse(args []string, lookupEnv LookupEnv, userConfigDir func() (string, error)) (Config, error) {
 	baseDir, err := resolveConfigDir(userConfigDir)
 	if err != nil {
