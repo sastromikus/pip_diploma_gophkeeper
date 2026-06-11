@@ -77,6 +77,10 @@ jobs:
       - name: Run vet
         run: go vet ./...
 
+      - name: Run repository security audit
+        shell: bash
+        run: ./scripts/audit.sh --strict
+
       - name: Run tests
         run: go test -count=1 ./...
 

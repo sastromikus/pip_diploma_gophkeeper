@@ -176,7 +176,7 @@ The model layer does not depend on PostgreSQL, gRPC, or generated protobuf code.
 
 ### Security model decisions
 
-The account password is used only for server authentication. A separate master password is intended for deriving the local key-encryption key and must never be sent to the server. The server stores only the encrypted data key, its salt and nonce, and the key-derivation format version.
+At the current project stage, the account password is also used as the master password for deriving the local key-encryption key. It is sent to the server over TLS for authentication and is also used locally to wrap or unwrap the data-encryption key. The server stores only the password hash, encrypted data key, salt, nonce, and key-derivation format version. This is not a zero-knowledge design against a malicious server.
 
 Deletion is represented by a minimal tombstone. A tombstone retains identifiers, type, version, revision, and timestamps, but does not retain encrypted payload, encrypted metadata, or nonces.
 
@@ -265,9 +265,7 @@ from gRPC and PostgreSQL details. It:
 - creates the user and initial session atomically in one PostgreSQL transaction;
 - maps invalid input, duplicate login, and internal failures to appropriate gRPC statuses.
 
-The raw session token is returned only once to the registering client. The
-account password is used for server authentication and is distinct from the
-master password used by the client to protect the data-encryption key.
+The raw session token is returned only once to the registering client. At the current project stage, the same entered password is used both for server authentication and locally as the master password that protects the data-encryption key.
 
 ## Authentication sessions
 

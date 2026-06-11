@@ -20,9 +20,9 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
-// Run assembles the server, listens for gRPC requests, and blocks until the
-// context is cancelled or the server exits unexpectedly.
-// Run starts the configured gRPC server and blocks until shutdown completes.
+// Run assembles the configured gRPC server and blocks until the context is
+// cancelled or the server exits unexpectedly. It performs graceful shutdown
+// before releasing the PostgreSQL connection pool.
 func Run(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	if ctx == nil {
 		return errors.New("server context is required")
