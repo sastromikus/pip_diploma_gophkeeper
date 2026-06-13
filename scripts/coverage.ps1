@@ -27,7 +27,7 @@ if ($packages.Count -eq 0) {
     throw "no packages found"
 }
 
-& go test -count=1 -covermode=atomic -coverprofile $Output @packages
+& go test -count=1 -p=1 -covermode=atomic -coverprofile $Output @packages
 if ($LASTEXITCODE -ne 0) {
     exit $LASTEXITCODE
 }

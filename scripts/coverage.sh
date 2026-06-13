@@ -22,7 +22,7 @@ fi
 
 # Word splitting is intentional: go test expects a package argument list.
 # shellcheck disable=SC2086
-go test -count=1 -covermode=atomic -coverprofile="$output" $packages
+go test -count=1 -p=1 -covermode=atomic -coverprofile="$output" $packages
 
 summary=$(go tool cover -func="$output")
 printf '%s\n' "$summary"

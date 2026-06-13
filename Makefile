@@ -32,7 +32,7 @@ proto:
 	./scripts/generate-proto.sh
 
 test:
-	go test ./...
+	go test -p=1 ./...
 
 test-integration:
 	go test ./internal/server/storage/postgres -run Integration -v
@@ -47,7 +47,7 @@ coverage-check:
 	./scripts/coverage.sh coverage.out "$(GOPHKEEPER_TEST_DATABASE_DSN)" 70
 
 race:
-	go test -race ./...
+	go test -p=1 -race ./...
 
 fmt:
 	gofmt -w .

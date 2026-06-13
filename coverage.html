@@ -55,23 +55,23 @@
 			<div id="nav">
 				<select id="files">
 				
-				<option value="file0">github.com/sastromikus/gophkeeper/cmd/client/conflict_cli.go (78.6%)</option>
+				<option value="file0">github.com/sastromikus/gophkeeper/cmd/client/conflict_cli.go (79.1%)</option>
 				
-				<option value="file1">github.com/sastromikus/gophkeeper/cmd/client/main.go (21.9%)</option>
+				<option value="file1">github.com/sastromikus/gophkeeper/cmd/client/main.go (19.1%)</option>
 				
-				<option value="file2">github.com/sastromikus/gophkeeper/cmd/client/vault_cli.go (74.0%)</option>
+				<option value="file2">github.com/sastromikus/gophkeeper/cmd/client/vault_cli.go (74.2%)</option>
 				
-				<option value="file3">github.com/sastromikus/gophkeeper/cmd/server/main.go (50.0%)</option>
+				<option value="file3">github.com/sastromikus/gophkeeper/cmd/server/main.go (42.1%)</option>
 				
 				<option value="file4">github.com/sastromikus/gophkeeper/internal/client/app/auth.go (68.8%)</option>
 				
-				<option value="file5">github.com/sastromikus/gophkeeper/internal/client/app/conflict.go (68.4%)</option>
+				<option value="file5">github.com/sastromikus/gophkeeper/internal/client/app/conflict.go (59.1%)</option>
 				
-				<option value="file6">github.com/sastromikus/gophkeeper/internal/client/app/local_vault.go (72.4%)</option>
+				<option value="file6">github.com/sastromikus/gophkeeper/internal/client/app/local_vault.go (69.0%)</option>
 				
 				<option value="file7">github.com/sastromikus/gophkeeper/internal/client/app/sync.go (73.6%)</option>
 				
-				<option value="file8">github.com/sastromikus/gophkeeper/internal/client/app/vault.go (69.4%)</option>
+				<option value="file8">github.com/sastromikus/gophkeeper/internal/client/app/vault.go (66.2%)</option>
 				
 				<option value="file9">github.com/sastromikus/gophkeeper/internal/client/config/config.go (87.0%)</option>
 				
@@ -222,15 +222,12 @@ func executeConflictCommand(command conflictCommand, service *clientapp.Conflict
 
         switch command.name </span>{
         case "conflicts":<span class="cov1" title="1">
-                conflicts, err := service.List(ctx)
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-                <span class="cov1" title="1">if len(conflicts) == 0 </span><span class="cov0" title="0">{
-                        _, err = fmt.Fprintln(stdout, "No unresolved conflicts.")
-                        return err
-                }</span>
-                <span class="cov1" title="1">for _, conflict := range conflicts </span><span class="cov1" title="1">{
+                found := false
+                for conflict, err := range service.List(ctx) </span><span class="cov1" title="1">{
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        <span class="cov1" title="1">found = true
                         remoteState := "active"
                         if conflict.RemoteDeleted </span><span class="cov0" title="0">{
                                 remoteState = "deleted"
@@ -239,6 +236,10 @@ func executeConflictCommand(command conflictCommand, service *clientapp.Conflict
                                 return fmt.Errorf("write conflict list: %w", err)
                         }</span>
                 }
+                <span class="cov1" title="1">if !found </span><span class="cov0" title="0">{
+                        _, err := fmt.Fprintln(stdout, "No unresolved conflicts.")
+                        return err
+                }</span>
                 <span class="cov1" title="1">return nil</span>
         case "resolve":<span class="cov4" title="2">
                 if err := service.Resolve(ctx, command.id, command.resolution); err != nil </span><span class="cov0" title="0">{
@@ -296,7 +297,7 @@ func run(args []string, stdout io.Writer) error <span class="cov1" title="1">{
 }</span>
 
 func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error <span class="cov3" title="2">{
-        if isVersionCommand(args) </span><span class="cov1" title="1">{
+        if version.IsCommand(args) </span><span class="cov1" title="1">{
                 if _, err := io.WriteString(stdout, version.Format(clientName)); err != nil </span><span class="cov0" title="0">{
                         return fmt.Errorf("write client version: %w", err)
                 }</span>
@@ -535,18 +536,6 @@ Connection flags for register, login, logout, and sync:
   -storage &lt;path&gt;`)
         return err
 }</span>
-
-func isVersionCommand(args []string) bool <span class="cov8" title="8">{
-        if len(args) != 1 </span><span class="cov4" title="3">{
-                return false
-        }</span>
-        <span class="cov6" title="5">switch args[0] </span>{
-        case "version", "-version", "--version":<span class="cov5" title="4">
-                return true</span>
-        default:<span class="cov1" title="1">
-                return false</span>
-        }
-}
 </pre>
 		
 		<pre class="file" id="file2" style="display: none">package main
@@ -557,6 +546,7 @@ import (
         "errors"
         "fmt"
         "io"
+        "iter"
         "mime"
         "net/http"
         "os"
@@ -574,7 +564,7 @@ const maxCLIFileSize = int64(10 * 1024 * 1024)
 type vaultService interface {
         Create(context.Context, string, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
         Get(context.Context, string, model.ID) (clientapp.RecordView, error)
-        List(context.Context, string) ([]clientapp.RecordSummary, error)
+        List(context.Context, string) iter.Seq2[clientapp.RecordSummary, error]
         Update(context.Context, string, model.ID, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
         Delete(context.Context, model.ID) error
 }
@@ -679,19 +669,20 @@ func executeVaultCommand(command vaultCommand, service vaultService, stdin io.Re
                 }</span>
                 <span class="cov3" title="2">ctx, cancel := commandContext()
                 defer cancel()
-                records, err := service.List(ctx, password)
-                if err != nil </span><span class="cov0" title="0">{
-                        return err
-                }</span>
-                <span class="cov3" title="2">if len(records) == 0 </span><span class="cov1" title="1">{
-                        _, err = fmt.Fprintln(stdout, "Vault is empty.")
-                        return err
-                }</span>
-                <span class="cov1" title="1">for _, record := range records </span><span class="cov1" title="1">{
+                found := false
+                for record, err := range service.List(ctx, password) </span><span class="cov1" title="1">{
+                        if err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                        <span class="cov1" title="1">found = true
                         if _, err := fmt.Fprintf(stdout, "%s\t%s\tv%d\t%s\t%s\n", record.ID, record.Type, record.Version, record.SyncStatus, record.Title); err != nil </span><span class="cov0" title="0">{
                                 return fmt.Errorf("write record list: %w", err)
                         }</span>
                 }
+                <span class="cov3" title="2">if !found </span><span class="cov1" title="1">{
+                        _, err = fmt.Fprintln(stdout, "Vault is empty.")
+                        return err
+                }</span>
                 <span class="cov1" title="1">return nil</span>
         case "get":<span class="cov1" title="1">
                 password, err := readPassword(stdin, reader, stdout, "Master password: ")
@@ -952,7 +943,7 @@ func main() <span class="cov0" title="0">{
 type runServer func(context.Context, config.Config, *slog.Logger) error
 
 func run(ctx context.Context, args []string, stdout io.Writer, start runServer) error <span class="cov10" title="2">{
-        if isVersionCommand(args) </span><span class="cov1" title="1">{
+        if version.IsCommand(args) </span><span class="cov1" title="1">{
                 if _, err := io.WriteString(stdout, version.Format(serverName)); err != nil </span><span class="cov0" title="0">{
                         return fmt.Errorf("write server version: %w", err)
                 }</span>
@@ -974,19 +965,6 @@ func run(ctx context.Context, args []string, stdout io.Writer, start runServer) 
                 return fmt.Errorf("run server: %w", err)
         }</span>
         <span class="cov1" title="1">return nil</span>
-}
-
-func isVersionCommand(args []string) bool <span class="cov10" title="2">{
-        if len(args) != 1 </span><span class="cov1" title="1">{
-                return false
-        }</span>
-
-        <span class="cov1" title="1">switch args[0] </span>{
-        case "version", "-version", "--version":<span class="cov1" title="1">
-                return true</span>
-        default:<span class="cov0" title="0">
-                return false</span>
-        }
 }
 </pre>
 		
@@ -1098,6 +1076,7 @@ import (
         "context"
         "errors"
         "fmt"
+        "iter"
 
         "github.com/sastromikus/gophkeeper/internal/client/storage"
         "github.com/sastromikus/gophkeeper/internal/model"
@@ -1131,24 +1110,29 @@ func NewConflictService(store ConflictStore) (*ConflictService, error) <span cla
         <span class="cov8" title="1">return &amp;ConflictService{store: store}, nil</span>
 }
 
-// List returns unresolved conflicts without decrypting their contents.
-func (service *ConflictService) List(ctx context.Context) ([]ConflictSummary, error) <span class="cov8" title="1">{
-        if ctx == nil </span><span class="cov0" title="0">{
-                return nil, errors.New("list conflicts: context is required")
-        }</span>
-        <span class="cov8" title="1">conflicts, err := service.store.ListConflicts(ctx)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, fmt.Errorf("list conflicts: %w", err)
-        }</span>
-        <span class="cov8" title="1">result := make([]ConflictSummary, 0, len(conflicts))
-        for _, conflict := range conflicts </span><span class="cov8" title="1">{
-                result = append(result, ConflictSummary{
-                        ID: conflict.Local.ID, Type: conflict.Local.Data.Type,
-                        LocalVersion: conflict.Local.Version, RemoteVersion: conflict.Remote.Version,
-                        RemoteDeleted: conflict.Remote.DeletedAt != nil,
-                })
-        }</span>
-        <span class="cov8" title="1">return result, nil</span>
+// List lazily yields unresolved conflicts without decrypting their contents.
+func (service *ConflictService) List(ctx context.Context) iter.Seq2[ConflictSummary, error] <span class="cov8" title="1">{
+        return func(yield func(ConflictSummary, error) bool) </span><span class="cov8" title="1">{
+                if ctx == nil </span><span class="cov0" title="0">{
+                        yield(ConflictSummary{}, errors.New("list conflicts: context is required"))
+                        return
+                }</span>
+                <span class="cov8" title="1">conflicts, err := service.store.ListConflicts(ctx)
+                if err != nil </span><span class="cov0" title="0">{
+                        yield(ConflictSummary{}, fmt.Errorf("list conflicts: %w", err))
+                        return
+                }</span>
+                <span class="cov8" title="1">for _, conflict := range conflicts </span><span class="cov8" title="1">{
+                        summary := ConflictSummary{
+                                ID: conflict.Local.ID, Type: conflict.Local.Data.Type,
+                                LocalVersion: conflict.Local.Version, RemoteVersion: conflict.Remote.Version,
+                                RemoteDeleted: conflict.Remote.DeletedAt != nil,
+                        }
+                        if !yield(summary, nil) </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
+        }
 }
 
 // Resolve keeps the selected encrypted version. Keeping local queues a new
@@ -1173,6 +1157,7 @@ import (
         "context"
         "errors"
         "fmt"
+        "iter"
         "time"
 
         clientcrypto "github.com/sastromikus/gophkeeper/internal/client/crypto"
@@ -1282,37 +1267,45 @@ func (service *LocalVaultService) Get(ctx context.Context, password string, id m
         <span class="cov1" title="1">return RecordView{ID: local.ID, Type: local.Data.Type, Version: local.Version, Payload: dereferencePayload(payload), Metadata: metadata}, nil</span>
 }
 
-// List decrypts display-safe summaries of all active local records.
-func (service *LocalVaultService) List(ctx context.Context, password string) ([]RecordSummary, error) <span class="cov1" title="1">{
-        if ctx == nil </span><span class="cov0" title="0">{
-                return nil, errors.New("list local records: context is required")
-        }</span>
-        <span class="cov1" title="1">records, err := service.local.List(ctx, false)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, fmt.Errorf("list encrypted local records: %w", err)
-        }</span>
-        <span class="cov1" title="1">if len(records) == 0 </span><span class="cov0" title="0">{
-                return nil, nil
-        }</span>
-        <span class="cov1" title="1">_, key, err := service.unlock(password)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov1" title="1">defer clientcrypto.Wipe(key)
-
-        summaries := make([]RecordSummary, 0, len(records))
-        for _, record := range records </span><span class="cov1" title="1">{
-                payload, err := payloadTarget(record.Data.Type)
+// List lazily yields decrypted display-safe summaries of active local records.
+func (service *LocalVaultService) List(ctx context.Context, password string) iter.Seq2[RecordSummary, error] <span class="cov1" title="1">{
+        return func(yield func(RecordSummary, error) bool) </span><span class="cov1" title="1">{
+                if ctx == nil </span><span class="cov0" title="0">{
+                        yield(RecordSummary{}, errors.New("list local records: context is required"))
+                        return
+                }</span>
+                <span class="cov1" title="1">records, err := service.local.List(ctx, false)
                 if err != nil </span><span class="cov0" title="0">{
-                        return nil, fmt.Errorf("prepare local record %s: %w", record.ID, err)
+                        yield(RecordSummary{}, fmt.Errorf("list encrypted local records: %w", err))
+                        return
                 }</span>
-                <span class="cov1" title="1">metadata := clientmodel.Metadata{}
-                if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &amp;metadata, service.limits); err != nil </span><span class="cov0" title="0">{
-                        return nil, fmt.Errorf("decrypt local record %s: %w", record.ID, err)
+                <span class="cov1" title="1">if len(records) == 0 </span><span class="cov0" title="0">{
+                        return
                 }</span>
-                <span class="cov1" title="1">summaries = append(summaries, RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload)), SyncStatus: record.SyncStatus})</span>
+                <span class="cov1" title="1">_, key, err := service.unlock(password)
+                if err != nil </span><span class="cov0" title="0">{
+                        yield(RecordSummary{}, err)
+                        return
+                }</span>
+                <span class="cov1" title="1">defer clientcrypto.Wipe(key)
+
+                for _, record := range records </span><span class="cov1" title="1">{
+                        payload, err := payloadTarget(record.Data.Type)
+                        if err != nil </span><span class="cov0" title="0">{
+                                yield(RecordSummary{}, fmt.Errorf("prepare local record %s: %w", record.ID, err))
+                                return
+                        }</span>
+                        <span class="cov1" title="1">metadata := clientmodel.Metadata{}
+                        if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &amp;metadata, service.limits); err != nil </span><span class="cov0" title="0">{
+                                yield(RecordSummary{}, fmt.Errorf("decrypt local record %s: %w", record.ID, err))
+                                return
+                        }</span>
+                        <span class="cov1" title="1">summary := RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload)), SyncStatus: record.SyncStatus}
+                        if !yield(summary, nil) </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                }
         }
-        <span class="cov1" title="1">return summaries, nil</span>
 }
 
 // Update encrypts replacement data and marks the local record as pending.
@@ -1615,6 +1608,7 @@ import (
         cryptorand "crypto/rand"
         "errors"
         "fmt"
+        "iter"
 
         clientcrypto "github.com/sastromikus/gophkeeper/internal/client/crypto"
         clientmodel "github.com/sastromikus/gophkeeper/internal/client/model"
@@ -1729,40 +1723,49 @@ func (service *VaultService) Get(ctx context.Context, password string, id model.
         <span class="cov1" title="1">return RecordView{ID: record.ID, Type: record.Data.Type, Version: record.Version, Payload: dereferencePayload(payload), Metadata: metadata}, nil</span>
 }
 
-// List downloads all active pages and decrypts display-safe summaries.
-func (service *VaultService) List(ctx context.Context, password string) ([]RecordSummary, error) <span class="cov1" title="1">{
-        state, key, err := service.unlock(password)
-        if err != nil </span><span class="cov0" title="0">{
-                return nil, err
-        }</span>
-        <span class="cov1" title="1">defer clientcrypto.Wipe(key)
-        var summaries []RecordSummary
-        cursor := ""
-        for </span><span class="cov1" title="1">{
-                page, err := service.api.ListRecords(ctx, state.Token, cursor, 100)
+// List lazily downloads active pages and yields decrypted display-safe summaries.
+func (service *VaultService) List(ctx context.Context, password string) iter.Seq2[RecordSummary, error] <span class="cov1" title="1">{
+        return func(yield func(RecordSummary, error) bool) </span><span class="cov1" title="1">{
+                state, key, err := service.unlock(password)
                 if err != nil </span><span class="cov0" title="0">{
-                        return nil, err
+                        yield(RecordSummary{}, err)
+                        return
                 }</span>
-                <span class="cov1" title="1">for _, record := range page.Records </span><span class="cov1" title="1">{
-                        payload, err := payloadTarget(record.Data.Type)
+                <span class="cov1" title="1">defer clientcrypto.Wipe(key)
+
+                cursor := ""
+                for </span><span class="cov1" title="1">{
+                        page, err := service.api.ListRecords(ctx, state.Token, cursor, 100)
                         if err != nil </span><span class="cov0" title="0">{
-                                return nil, fmt.Errorf("prepare record %s: %w", record.ID, err)
+                                yield(RecordSummary{}, err)
+                                return
                         }</span>
-                        <span class="cov1" title="1">metadata := clientmodel.Metadata{}
-                        if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &amp;metadata, service.limits); err != nil </span><span class="cov0" title="0">{
-                                return nil, fmt.Errorf("decrypt record %s: %w", record.ID, err)
+                        <span class="cov1" title="1">for _, record := range page.Records </span><span class="cov1" title="1">{
+                                payload, err := payloadTarget(record.Data.Type)
+                                if err != nil </span><span class="cov0" title="0">{
+                                        yield(RecordSummary{}, fmt.Errorf("prepare record %s: %w", record.ID, err))
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">metadata := clientmodel.Metadata{}
+                                if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &amp;metadata, service.limits); err != nil </span><span class="cov0" title="0">{
+                                        yield(RecordSummary{}, fmt.Errorf("decrypt record %s: %w", record.ID, err))
+                                        return
+                                }</span>
+                                <span class="cov1" title="1">summary := RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload))}
+                                if !yield(summary, nil) </span><span class="cov0" title="0">{
+                                        return
+                                }</span>
+                        }
+                        <span class="cov1" title="1">if !page.HasMore </span><span class="cov1" title="1">{
+                                return
                         }</span>
-                        <span class="cov1" title="1">summaries = append(summaries, RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload))})</span>
+                        <span class="cov0" title="0">if page.NextPageToken == "" || page.NextPageToken == cursor </span><span class="cov0" title="0">{
+                                yield(RecordSummary{}, errors.New("server returned an invalid pagination cursor"))
+                                return
+                        }</span>
+                        <span class="cov0" title="0">cursor = page.NextPageToken</span>
                 }
-                <span class="cov1" title="1">if !page.HasMore </span><span class="cov1" title="1">{
-                        break</span>
-                }
-                <span class="cov0" title="0">if page.NextPageToken == "" || page.NextPageToken == cursor </span><span class="cov0" title="0">{
-                        return nil, errors.New("server returned an invalid pagination cursor")
-                }</span>
-                <span class="cov0" title="0">cursor = page.NextPageToken</span>
         }
-        <span class="cov1" title="1">return summaries, nil</span>
 }
 
 // Update encrypts replacement data and writes it using the current server version.
@@ -6966,6 +6969,20 @@ func Current() Info <span class="cov5" title="3">{
                 Commit:    normalized(Commit, defaultCommit),
         }
 }</span>
+
+// IsCommand reports whether args request build-version information.
+func IsCommand(args []string) bool <span class="cov8" title="6">{
+        if len(args) != 1 </span><span class="cov3" title="2">{
+                return false
+        }</span>
+
+        <span class="cov6" title="4">switch args[0] </span>{
+        case "version", "-version", "--version":<span class="cov5" title="3">
+                return true</span>
+        default:<span class="cov1" title="1">
+                return false</span>
+        }
+}
 
 // Format returns build metadata formatted for command-line output.
 func Format(application string) string <span class="cov1" title="1">{
