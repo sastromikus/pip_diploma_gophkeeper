@@ -161,9 +161,12 @@ func TestLocalVaultServiceGetAndList(t *testing.T) {
 	if credentials, ok := view.Payload.(clientmodel.Credentials); !ok || credentials.Name != "mail" {
 		t.Fatalf("Get() payload = %#v", view.Payload)
 	}
-	summaries, err := service.List(context.Background(), "password")
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
+	var summaries []RecordSummary
+	for summary, err := range service.List(context.Background(), "password") {
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		summaries = append(summaries, summary)
 	}
 	if len(summaries) != 1 || summaries[0].Title != "mail" {
 		t.Fatalf("List() = %#v", summaries)

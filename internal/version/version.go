@@ -32,6 +32,20 @@ func Current() Info {
 	}
 }
 
+// IsCommand reports whether args request build-version information.
+func IsCommand(args []string) bool {
+	if len(args) != 1 {
+		return false
+	}
+
+	switch args[0] {
+	case "version", "-version", "--version":
+		return true
+	default:
+		return false
+	}
+}
+
 // Format returns build metadata formatted for command-line output.
 func Format(application string) string {
 	info := Current()

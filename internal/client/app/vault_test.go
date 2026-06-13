@@ -106,9 +106,12 @@ func TestVaultServiceListAndDelete(t *testing.T) {
 	record := clienttransport.RemoteRecord{ID: id, Data: clientcrypto.EncryptedRecordData{Type: model.RecordTypeText}, Version: 2}
 	api := &vaultAPIFake{record: record, page: clienttransport.RecordPage{Records: []clienttransport.RemoteRecord{record}}}
 	service, _ := NewVaultService(api, &sessionStoreFake{state: testSessionState()}, vaultCryptoFake{})
-	summaries, err := service.List(context.Background(), "password")
-	if err != nil {
-		t.Fatalf("List() error = %v", err)
+	var summaries []RecordSummary
+	for summary, err := range service.List(context.Background(), "password") {
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		summaries = append(summaries, summary)
 	}
 	if len(summaries) != 1 || summaries[0].Title != "title" {
 		t.Fatalf("List() = %#v", summaries)

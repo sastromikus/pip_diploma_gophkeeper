@@ -56,15 +56,12 @@ func executeConflictCommand(command conflictCommand, service *clientapp.Conflict
 
 	switch command.name {
 	case "conflicts":
-		conflicts, err := service.List(ctx)
-		if err != nil {
-			return err
-		}
-		if len(conflicts) == 0 {
-			_, err = fmt.Fprintln(stdout, "No unresolved conflicts.")
-			return err
-		}
-		for _, conflict := range conflicts {
+		found := false
+		for conflict, err := range service.List(ctx) {
+			if err != nil {
+				return err
+			}
+			found = true
 			remoteState := "active"
 			if conflict.RemoteDeleted {
 				remoteState = "deleted"
@@ -72,6 +69,10 @@ func executeConflictCommand(command conflictCommand, service *clientapp.Conflict
 			if _, err := fmt.Fprintf(stdout, "%s\t%s\tlocal-v%d\tserver-v%d\tserver-%s\n", conflict.ID, conflict.Type, conflict.LocalVersion, conflict.RemoteVersion, remoteState); err != nil {
 				return fmt.Errorf("write conflict list: %w", err)
 			}
+		}
+		if !found {
+			_, err := fmt.Fprintln(stdout, "No unresolved conflicts.")
+			return err
 		}
 		return nil
 	case "resolve":

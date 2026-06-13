@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"iter"
 	"mime"
 	"net/http"
 	"os"
@@ -23,7 +24,7 @@ const maxCLIFileSize = int64(10 * 1024 * 1024)
 type vaultService interface {
 	Create(context.Context, string, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
 	Get(context.Context, string, model.ID) (clientapp.RecordView, error)
-	List(context.Context, string) ([]clientapp.RecordSummary, error)
+	List(context.Context, string) iter.Seq2[clientapp.RecordSummary, error]
 	Update(context.Context, string, model.ID, model.RecordType, any, clientmodel.Metadata) (clienttransport.RemoteRecord, error)
 	Delete(context.Context, model.ID) error
 }
@@ -128,18 +129,19 @@ func executeVaultCommand(command vaultCommand, service vaultService, stdin io.Re
 		}
 		ctx, cancel := commandContext()
 		defer cancel()
-		records, err := service.List(ctx, password)
-		if err != nil {
-			return err
-		}
-		if len(records) == 0 {
-			_, err = fmt.Fprintln(stdout, "Vault is empty.")
-			return err
-		}
-		for _, record := range records {
+		found := false
+		for record, err := range service.List(ctx, password) {
+			if err != nil {
+				return err
+			}
+			found = true
 			if _, err := fmt.Fprintf(stdout, "%s\t%s\tv%d\t%s\t%s\n", record.ID, record.Type, record.Version, record.SyncStatus, record.Title); err != nil {
 				return fmt.Errorf("write record list: %w", err)
 			}
+		}
+		if !found {
+			_, err = fmt.Fprintln(stdout, "Vault is empty.")
+			return err
 		}
 		return nil
 	case "get":

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"time"
 
 	clientcrypto "github.com/sastromikus/gophkeeper/internal/client/crypto"
@@ -113,37 +114,45 @@ func (service *LocalVaultService) Get(ctx context.Context, password string, id m
 	return RecordView{ID: local.ID, Type: local.Data.Type, Version: local.Version, Payload: dereferencePayload(payload), Metadata: metadata}, nil
 }
 
-// List decrypts display-safe summaries of all active local records.
-func (service *LocalVaultService) List(ctx context.Context, password string) ([]RecordSummary, error) {
-	if ctx == nil {
-		return nil, errors.New("list local records: context is required")
-	}
-	records, err := service.local.List(ctx, false)
-	if err != nil {
-		return nil, fmt.Errorf("list encrypted local records: %w", err)
-	}
-	if len(records) == 0 {
-		return nil, nil
-	}
-	_, key, err := service.unlock(password)
-	if err != nil {
-		return nil, err
-	}
-	defer clientcrypto.Wipe(key)
-
-	summaries := make([]RecordSummary, 0, len(records))
-	for _, record := range records {
-		payload, err := payloadTarget(record.Data.Type)
+// List lazily yields decrypted display-safe summaries of active local records.
+func (service *LocalVaultService) List(ctx context.Context, password string) iter.Seq2[RecordSummary, error] {
+	return func(yield func(RecordSummary, error) bool) {
+		if ctx == nil {
+			yield(RecordSummary{}, errors.New("list local records: context is required"))
+			return
+		}
+		records, err := service.local.List(ctx, false)
 		if err != nil {
-			return nil, fmt.Errorf("prepare local record %s: %w", record.ID, err)
+			yield(RecordSummary{}, fmt.Errorf("list encrypted local records: %w", err))
+			return
 		}
-		metadata := clientmodel.Metadata{}
-		if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
-			return nil, fmt.Errorf("decrypt local record %s: %w", record.ID, err)
+		if len(records) == 0 {
+			return
 		}
-		summaries = append(summaries, RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload)), SyncStatus: record.SyncStatus})
+		_, key, err := service.unlock(password)
+		if err != nil {
+			yield(RecordSummary{}, err)
+			return
+		}
+		defer clientcrypto.Wipe(key)
+
+		for _, record := range records {
+			payload, err := payloadTarget(record.Data.Type)
+			if err != nil {
+				yield(RecordSummary{}, fmt.Errorf("prepare local record %s: %w", record.ID, err))
+				return
+			}
+			metadata := clientmodel.Metadata{}
+			if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
+				yield(RecordSummary{}, fmt.Errorf("decrypt local record %s: %w", record.ID, err))
+				return
+			}
+			summary := RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload)), SyncStatus: record.SyncStatus}
+			if !yield(summary, nil) {
+				return
+			}
+		}
 	}
-	return summaries, nil
 }
 
 // Update encrypts replacement data and marks the local record as pending.

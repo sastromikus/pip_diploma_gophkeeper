@@ -38,7 +38,7 @@ func run(args []string, stdout io.Writer) error {
 }
 
 func runWithIO(args []string, stdin io.Reader, stdout io.Writer) error {
-	if isVersionCommand(args) {
+	if version.IsCommand(args) {
 		if _, err := io.WriteString(stdout, version.Format(clientName)); err != nil {
 			return fmt.Errorf("write client version: %w", err)
 		}
@@ -276,16 +276,4 @@ Connection flags for register, login, logout, and sync:
   -config <path>
   -storage <path>`)
 	return err
-}
-
-func isVersionCommand(args []string) bool {
-	if len(args) != 1 {
-		return false
-	}
-	switch args[0] {
-	case "version", "-version", "--version":
-		return true
-	default:
-		return false
-	}
 }

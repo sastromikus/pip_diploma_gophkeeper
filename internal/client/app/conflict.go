@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 
 	"github.com/sastromikus/gophkeeper/internal/client/storage"
 	"github.com/sastromikus/gophkeeper/internal/model"
@@ -37,24 +38,29 @@ func NewConflictService(store ConflictStore) (*ConflictService, error) {
 	return &ConflictService{store: store}, nil
 }
 
-// List returns unresolved conflicts without decrypting their contents.
-func (service *ConflictService) List(ctx context.Context) ([]ConflictSummary, error) {
-	if ctx == nil {
-		return nil, errors.New("list conflicts: context is required")
+// List lazily yields unresolved conflicts without decrypting their contents.
+func (service *ConflictService) List(ctx context.Context) iter.Seq2[ConflictSummary, error] {
+	return func(yield func(ConflictSummary, error) bool) {
+		if ctx == nil {
+			yield(ConflictSummary{}, errors.New("list conflicts: context is required"))
+			return
+		}
+		conflicts, err := service.store.ListConflicts(ctx)
+		if err != nil {
+			yield(ConflictSummary{}, fmt.Errorf("list conflicts: %w", err))
+			return
+		}
+		for _, conflict := range conflicts {
+			summary := ConflictSummary{
+				ID: conflict.Local.ID, Type: conflict.Local.Data.Type,
+				LocalVersion: conflict.Local.Version, RemoteVersion: conflict.Remote.Version,
+				RemoteDeleted: conflict.Remote.DeletedAt != nil,
+			}
+			if !yield(summary, nil) {
+				return
+			}
+		}
 	}
-	conflicts, err := service.store.ListConflicts(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list conflicts: %w", err)
-	}
-	result := make([]ConflictSummary, 0, len(conflicts))
-	for _, conflict := range conflicts {
-		result = append(result, ConflictSummary{
-			ID: conflict.Local.ID, Type: conflict.Local.Data.Type,
-			LocalVersion: conflict.Local.Version, RemoteVersion: conflict.Remote.Version,
-			RemoteDeleted: conflict.Remote.DeletedAt != nil,
-		})
-	}
-	return result, nil
 }
 
 // Resolve keeps the selected encrypted version. Keeping local queues a new

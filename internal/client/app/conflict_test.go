@@ -39,9 +39,15 @@ func TestConflictServiceListAndResolve(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewConflictService() error = %v", err)
 	}
-	items, err := service.List(context.Background())
-	if err != nil || len(items) != 1 {
-		t.Fatalf("List() = %#v, %v", items, err)
+	var items []ConflictSummary
+	for item, err := range service.List(context.Background()) {
+		if err != nil {
+			t.Fatalf("List() error = %v", err)
+		}
+		items = append(items, item)
+	}
+	if len(items) != 1 {
+		t.Fatalf("List() = %#v", items)
 	}
 	if items[0].LocalVersion != 2 || items[0].RemoteVersion != 3 {
 		t.Fatalf("summary = %#v", items[0])

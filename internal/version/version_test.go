@@ -61,3 +61,26 @@ func TestFormat(t *testing.T) {
 		t.Fatalf("Format() = %q, want %q", got, want)
 	}
 }
+
+func TestIsCommand(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want bool
+	}{
+		{name: "command", args: []string{"version"}, want: true},
+		{name: "short flag", args: []string{"-version"}, want: true},
+		{name: "long flag", args: []string{"--version"}, want: true},
+		{name: "missing", args: nil, want: false},
+		{name: "extra argument", args: []string{"version", "extra"}, want: false},
+		{name: "other command", args: []string{"login"}, want: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := IsCommand(tt.args); got != tt.want {
+				t.Fatalf("IsCommand(%q) = %v, want %v", tt.args, got, tt.want)
+			}
+		})
+	}
+}

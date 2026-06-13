@@ -5,6 +5,7 @@ import (
 	cryptorand "crypto/rand"
 	"errors"
 	"fmt"
+	"iter"
 
 	clientcrypto "github.com/sastromikus/gophkeeper/internal/client/crypto"
 	clientmodel "github.com/sastromikus/gophkeeper/internal/client/model"
@@ -119,40 +120,49 @@ func (service *VaultService) Get(ctx context.Context, password string, id model.
 	return RecordView{ID: record.ID, Type: record.Data.Type, Version: record.Version, Payload: dereferencePayload(payload), Metadata: metadata}, nil
 }
 
-// List downloads all active pages and decrypts display-safe summaries.
-func (service *VaultService) List(ctx context.Context, password string) ([]RecordSummary, error) {
-	state, key, err := service.unlock(password)
-	if err != nil {
-		return nil, err
-	}
-	defer clientcrypto.Wipe(key)
-	var summaries []RecordSummary
-	cursor := ""
-	for {
-		page, err := service.api.ListRecords(ctx, state.Token, cursor, 100)
+// List lazily downloads active pages and yields decrypted display-safe summaries.
+func (service *VaultService) List(ctx context.Context, password string) iter.Seq2[RecordSummary, error] {
+	return func(yield func(RecordSummary, error) bool) {
+		state, key, err := service.unlock(password)
 		if err != nil {
-			return nil, err
+			yield(RecordSummary{}, err)
+			return
 		}
-		for _, record := range page.Records {
-			payload, err := payloadTarget(record.Data.Type)
+		defer clientcrypto.Wipe(key)
+
+		cursor := ""
+		for {
+			page, err := service.api.ListRecords(ctx, state.Token, cursor, 100)
 			if err != nil {
-				return nil, fmt.Errorf("prepare record %s: %w", record.ID, err)
+				yield(RecordSummary{}, err)
+				return
 			}
-			metadata := clientmodel.Metadata{}
-			if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
-				return nil, fmt.Errorf("decrypt record %s: %w", record.ID, err)
+			for _, record := range page.Records {
+				payload, err := payloadTarget(record.Data.Type)
+				if err != nil {
+					yield(RecordSummary{}, fmt.Errorf("prepare record %s: %w", record.ID, err))
+					return
+				}
+				metadata := clientmodel.Metadata{}
+				if err := service.crypto.DecryptRecord(key, record.ID, record.Data, payload, &metadata, service.limits); err != nil {
+					yield(RecordSummary{}, fmt.Errorf("decrypt record %s: %w", record.ID, err))
+					return
+				}
+				summary := RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload))}
+				if !yield(summary, nil) {
+					return
+				}
 			}
-			summaries = append(summaries, RecordSummary{ID: record.ID, Type: record.Data.Type, Version: record.Version, Title: payloadTitle(dereferencePayload(payload))})
+			if !page.HasMore {
+				return
+			}
+			if page.NextPageToken == "" || page.NextPageToken == cursor {
+				yield(RecordSummary{}, errors.New("server returned an invalid pagination cursor"))
+				return
+			}
+			cursor = page.NextPageToken
 		}
-		if !page.HasMore {
-			break
-		}
-		if page.NextPageToken == "" || page.NextPageToken == cursor {
-			return nil, errors.New("server returned an invalid pagination cursor")
-		}
-		cursor = page.NextPageToken
 	}
-	return summaries, nil
 }
 
 // Update encrypts replacement data and writes it using the current server version.

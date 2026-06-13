@@ -46,20 +46,3 @@ func TestReadCredentialsRejectsMismatch(t *testing.T) {
 		t.Fatal("expected error")
 	}
 }
-
-func TestIsVersionCommand(t *testing.T) {
-	tests := []struct {
-		name string
-		args []string
-		want bool
-	}{
-		{"command", []string{"version"}, true}, {"short flag", []string{"-version"}, true}, {"long flag", []string{"--version"}, true}, {"missing", nil, false}, {"extra argument", []string{"version", "extra"}, false}, {"different command", []string{"login"}, false},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := isVersionCommand(tt.args); got != tt.want {
-				t.Fatalf("isVersionCommand(%q)=%v want %v", tt.args, got, tt.want)
-			}
-		})
-	}
-}

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"iter"
 	"strings"
 	"testing"
 
@@ -42,11 +43,18 @@ func (stub *vaultServiceCLIStub) Get(_ context.Context, _ string, _ model.ID) (c
 	return stub.getResult, nil
 }
 
-func (stub *vaultServiceCLIStub) List(_ context.Context, _ string) ([]clientapp.RecordSummary, error) {
-	if stub.err != nil {
-		return nil, stub.err
+func (stub *vaultServiceCLIStub) List(_ context.Context, _ string) iter.Seq2[clientapp.RecordSummary, error] {
+	return func(yield func(clientapp.RecordSummary, error) bool) {
+		if stub.err != nil {
+			yield(clientapp.RecordSummary{}, stub.err)
+			return
+		}
+		for _, record := range stub.listResult {
+			if !yield(record, nil) {
+				return
+			}
+		}
 	}
-	return stub.listResult, nil
 }
 
 func (stub *vaultServiceCLIStub) Update(_ context.Context, _ string, _ model.ID, _ model.RecordType, payload any, metadata clientmodel.Metadata) (clienttransport.RemoteRecord, error) {

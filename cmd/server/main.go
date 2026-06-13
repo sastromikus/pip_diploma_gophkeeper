@@ -31,7 +31,7 @@ func main() {
 type runServer func(context.Context, config.Config, *slog.Logger) error
 
 func run(ctx context.Context, args []string, stdout io.Writer, start runServer) error {
-	if isVersionCommand(args) {
+	if version.IsCommand(args) {
 		if _, err := io.WriteString(stdout, version.Format(serverName)); err != nil {
 			return fmt.Errorf("write server version: %w", err)
 		}
@@ -53,17 +53,4 @@ func run(ctx context.Context, args []string, stdout io.Writer, start runServer) 
 		return fmt.Errorf("run server: %w", err)
 	}
 	return nil
-}
-
-func isVersionCommand(args []string) bool {
-	if len(args) != 1 {
-		return false
-	}
-
-	switch args[0] {
-	case "version", "-version", "--version":
-		return true
-	default:
-		return false
-	}
 }
