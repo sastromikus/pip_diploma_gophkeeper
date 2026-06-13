@@ -1,2 +1,2 @@
-// Package model contains shared domain models.
+// Package model contains transport-independent GophKeeper domain models.
 package model
